@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>MIDI Input Grid Sequencer</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            text-align: center;
+            padding: 20px;
+            background-color: #f4f4f9;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .grid-wrapper {
+            display: flex;
+            margin-top: 15px;
+            border: 1px solid #ccc;
+        }
+        .note-labels {
+            width: 80px;
+            flex-shrink: 0;
+            background-color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+        }
+        .note-label {
+            height: 18px;
+            line-height: 18px;
+            text-align: right;
+            padding-right: 5px;
+            font-size: 10px;
+            font-weight: bold;
+            border-bottom: 1px solid #ddd;
+        }
+        .note-label.sharp {
+            background-color: #e0e0e0; /* Gray for black keys */
+            color: #333;
+        }
+        .grid-container {
+            flex-grow: 1;
+            display: grid;
+            grid-template-columns: repeat(32, 1fr);
+            border-left: 1px solid #ccc;
+        }
+        .step {
+            height: 18px;
+            border: 1px solid #eee;
+            cursor: pointer;
+            background-color: #fff;
+        }
+        .step:hover {
+            background-color: #f9f9f9;
+        }
+        .active {
+            background-color: #64b5f6 !important; /* Blue for the current step column */
+            border-color: #1976d2;
+        }
+        .on {
+            background-color: #4CAF50; /* Green for selected notes */
+        }
+        .on.active {
+            background-color: #ff9800 !important; /* Orange when selected and active */
+        }
+        .controls {
+            margin: 20px 0;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+        }
+        .tempo-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>MIDI Input Grid Sequencer (32 Steps)</h2>
+        
+        <button id="midi-init-button" onclick="initializeMidi()" style="padding: 10px 20px; font-size: 16px; cursor: pointer;">
+            1. Initialize MIDI
+        </button>
+        <p id="status-message" style="color: blue; font-weight: bold; margin-top: 10px;">
+            Click the button to start.
+        </p>
+
+        <div id="controls-section" style="display: none;">
+            <div style="display: flex; justify-content: space-around; max-width: 600px; margin: 0 auto 10px;">
+                <p style="font-weight: bold; margin-bottom: 5px;">Input:</p>
+                <select id="midi-input-select" style="padding: 8px; font-size: 14px; width: 40%;"></select>
+                <p style="font-weight: bold; margin-bottom: 5px;">Output:</p>
+                <select id="midi-output-select" style="padding: 8px; font-size: 14px; width: 40%;"></select>
+            </div>
+
+            <div class="controls">
+                <button id="record-button" onclick="toggleRecording()" style="padding: 15px 30px; font-size: 18px; background-color: #f44336; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                    🔴 Record
+                </button>
+                <button id="play-button" onclick="togglePlayback()" style="padding: 15px 30px; font-size: 18px; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                    ▶️ Play
+                </button>
+                <div class="tempo-control">
+                    <label for="bpm-slider">Tempo (BPM):</label>
+                    <input type="range" id="bpm-slider" min="60" max="240" value="120" oninput="updateBPM(this.value)">
+                    <span id="bpm-display">120</span>
+                </div>
+                <button onclick="clearGrid()" style="padding: 15px 30px; font-size: 18px; background-color: #333; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                    🗑️ Clear Grid
+                </button>
+            </div>
+
+            <div class="grid-wrapper">
+                <div class="note-labels" id="note-labels"></div>
+                <div class="grid-container" id="sequencer-grid"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Configuration ---
+        // Chromatic range from C3 (48) to C5 (72) plus one C#5 (73) for a total of 25 notes
+        // The array is ordered highest (C#5) to lowest (C3) for the vertical display
+        const CHROMATIC_NOTES = [
+            { num: 73, name: "C#5", isSharp: true }, 
+            { num: 72, name: "C5", isSharp: false }, 
+            { num: 71, name: "B4", isSharp: false }, 
+            { num: 70, name: "A#4", isSharp: true }, 
+            { num: 69, name: "A4", isSharp: false }, 
+            { num: 68, name: "G#4", isSharp: true }, 
+            { num: 67, name: "G4", isSharp: false }, 
+            { num: 66, name: "F#4", isSharp: true }, 
+            { num: 65, name: "F4", isSharp: false }, 
+            { num: 64, name: "E4", isSharp: false }, 
+            { num: 63, name: "D#4", isSharp: true }, 
+            { num: 62, name: "D4", isSharp: false }, 
+            { num: 61, name: "C#4", isSharp: true }, 
+            { num: 60, name: "C4", isSharp: false }, 
+            { num: 59, name: "B3", isSharp: false }, 
+            { num: 58, name: "A#3", isSharp: true }, 
+            { num: 57, name: "A3", isSharp: false }, 
+            { num: 56, name: "G#3", isSharp: true }, 
+            { num: 55, name: "G3", isSharp: false }, 
+            { num: 54, name: "F#3", isSharp: true }, 
+            { num: 53, name: "F3", isSharp: false }, 
+            { num: 52, name: "E3", isSharp: false }, 
+            { num: 51, name: "D#3", isSharp: true }, 
+            { num: 50, name: "D3", isSharp: false }, 
+            { num: 49, name: "C#3", isSharp: true }, 
+            { num: 48, name: "C3", isSharp: false }
+        ];
+
+        const NUM_STEPS = 32;
+        const NUM_ROWS = CHROMATIC_NOTES.length;
+        const VELOCITY = 100;
+        const CHANNEL = 0; // MIDI Channel 1
+        const MIDI_NOTE_MAP = {}; // To quickly map MIDI number to row index
+        CHROMATIC_NOTES.forEach((note, index) => {
+            MIDI_NOTE_MAP[note.num] = index;
+        });
+
+        // MIDI Status Codes
+        const NOTE_ON_STATUS = 0x90; // 144
+        const NOTE_OFF_STATUS = 0x80; // 128
+        
+        // --- State Variables ---
+        let midiAccess = null;
+        let input = null;
+        let output = null;
+        let isPlaying = false;
+        let isRecording = false;
+        let recordingStartTime = 0;
+        let currentStep = 0;
+        let bpm = 120;
+        let timerID = null;
+        let stepDurationMs = 0; // Calculated based on BPM
+        
+        // 2D Array to store the grid state (true/false)
+        let sequence = Array(NUM_ROWS).fill(0).map(() => Array(NUM_STEPS).fill(false));
+
+        // --- DOM Elements ---
+        const statusMessage = document.getElementById('status-message');
+        const inputSelect = document.getElementById('midi-input-select');
+        const outputSelect = document.getElementById('midi-output-select');
+        const controlsSection = document.getElementById('controls-section');
+        const sequencerGrid = document.getElementById('sequencer-grid');
+        const noteLabelsDiv = document.getElementById('note-labels');
+        const playButton = document.getElementById('play-button');
+        const recordButton = document.getElementById('record-button');
+        const bpmDisplay = document.getElementById('bpm-display');
+
+        // --- Core Setup and Grid Generation ---
+        function calculateStepDuration() {
+            // Formula: (60 seconds / BPM) / 8 steps per beat (32 steps = 8 steps/beat * 4 beats) * 1000 ms/second
+            // The 32 steps represent 1/8th notes (quavers) over 4 beats. No, 32 steps is 1/8th notes over 8 beats, or 1/16th notes over 4 beats. 
+            // Let's assume 32 steps is 1/8th notes over 4 beats (8 steps per beat, which is 1/8 note). No, that's 32 steps as 1/32nd notes over 1 beat.
+            // Let's assume 32 steps = 4 beats of 1/8th notes (8 steps/beat) -> 4 * 8 = 32 steps. This is a common pattern.
+            // Duration of one 8th note at 120 BPM: (60 / 120) / 8 * 1000 = 62.5ms.
+            // Let's assume 32 steps is 4 measures of 16th notes. So 4 * 16 steps = 64 steps. 
+            // Let's assume **32 steps is 2 measures (bars) of 4/4, with 16th note resolution.** (2 * 16 = 32). This is a great resolution.
+            
+            // Step is a 16th note. There are 4 steps per beat.
+            stepDurationMs = (60 / bpm) / 4 * 1000; 
+
+            if (timerID) { // Restart timer if playing
+                clearInterval(timerID);
+                timerID = setInterval(stepSequencer, stepDurationMs);
+            }
+        }
+        
+        function updateBPM(newBPM) {
+            bpm = parseInt(newBPM);
+            bpmDisplay.textContent = bpm;
+            calculateStepDuration();
+        }
+
+        function createGrid() {
+            sequencerGrid.innerHTML = '';
+            noteLabelsDiv.innerHTML = '';
+
+            // 1. Create Note Labels
+            CHROMATIC_NOTES.forEach(note => {
+                const label = document.createElement('div');
+                label.className = `note-label ${note.isSharp ? 'sharp' : ''}`;
+                label.textContent = note.name;
+                noteLabelsDiv.appendChild(label);
+            });
+
+            // 2. Create Grid Steps
+            for (let row = 0; row < NUM_ROWS; row++) {
+                for (let col = 0; col < NUM_STEPS; col++) {
+                    const stepElement = document.createElement('div');
+                    stepElement.className = 'step';
+                    stepElement.dataset.row = row;
+                    stepElement.dataset.col = col;
+                    
+                    // Visual separators for the measures/beats
+                    if (col % 16 === 0) { // Measure (Bar) 1 and 2 start
+                        stepElement.style.borderLeft = '2px solid #333';
+                    } else if (col % 4 === 0) { // Strong Beat
+                        stepElement.style.borderLeft = '1px solid #777';
+                    }
+
+                    // Alternate row background for black keys
+                    if (CHROMATIC_NOTES[row].isSharp) {
+                        stepElement.style.backgroundColor = '#f8f8f8'; 
+                    }
+
+                    stepElement.onclick = () => toggleStep(row, col, stepElement);
+                    sequencerGrid.appendChild(stepElement);
+                }
+            }
+            calculateStepDuration();
+        }
+
+        function toggleStep(row, col, element) {
+            sequence[row][col] = !sequence[row][col];
+            element.classList.toggle('on', sequence[row][col]);
+        }
+        
+        function clearGrid() {
+            sequence = Array(NUM_ROWS).fill(0).map(() => Array(NUM_STEPS).fill(false));
+            document.querySelectorAll('.step').forEach(el => el.classList.remove('on'));
+        }
+
+        // --- Sequencer Logic ---
+        function togglePlayback() {
+            if (!output) {
+                alert("Please select a MIDI Output device first.");
+                return;
+            }
+
+            isPlaying = !isPlaying;
+
+            if (isPlaying) {
+                // Ensure recording is off
+                if (isRecording) toggleRecording(); 
+
+                playButton.textContent = "⏸️ Stop";
+                playButton.style.backgroundColor = '#f39c12'; // Orange
+                currentStep = 0; // Start from the beginning
+                timerID = setInterval(stepSequencer, stepDurationMs);
+                statusMessage.textContent = `Playing grid at ${bpm} BPM...`;
+            } else {
+                playButton.textContent = "▶️ Play";
+                playButton.style.backgroundColor = '#4CAF50'; // Green
+                clearInterval(timerID);
+                timerID = null;
+                // Turn off any currently held notes
+                output.send([0xB0 + CHANNEL, 123, 0]); // All Notes Off
+                
+                // Clear the active column highlight
+                document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
+                statusMessage.textContent = "Playback stopped.";
+            }
+        }
+
+        function stepSequencer() {
+            const now = window.performance.now();
+
+            // 1. Highlight the current column
+            // We need to clear *all* previous active steps first
+            document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
+            
+            // Highlight the current column steps
+            for (let row = 0; row < NUM_ROWS; row++) {
+                const elementIndex = row * NUM_STEPS + currentStep;
+                const stepElement = sequencerGrid.children[elementIndex];
+                if (stepElement) {
+                    stepElement.classList.add('active');
+                }
+            }
+
+            // 2. Process the notes in the current step (column)
+            for (let row = 0; row < NUM_ROWS; row++) {
+                if (sequence[row][currentStep]) {
+                    const noteNumber = CHROMATIC_NOTES[row].num;
+                    
+                    // Send Note ON message (0x90)
+                    output.send([0x90 + CHANNEL, noteNumber, VELOCITY], now); 
+                    
+                    // Schedule Note OFF message (0x80)
+                    // The note should turn off a little before the next step to ensure clean sound (a "gate")
+                    output.send([0x80 + CHANNEL, noteNumber, 0], now + stepDurationMs - 50); 
+                }
+            }
+
+            // 3. Advance to the next step
+            currentStep = (currentStep + 1) % NUM_STEPS;
+        }
+
+
+        // --- Recording and Quantization Logic ---
+        function toggleRecording() {
+             if (!input || !output) {
+                alert("Please select both MIDI Input and Output devices first.");
+                return;
+            }
+
+            // Stop playback if it's running
+            if (isPlaying) togglePlayback(); 
+
+            isRecording = !isRecording;
+
+            if (isRecording) {
+                recordButton.textContent = "🟥 STOP";
+                recordButton.style.backgroundColor = '#cc0000';
+                statusMessage.textContent = `Recording started. Play on your MIDI keyboard to mark the grid.`;
+                recordingStartTime = window.performance.now();
+                clearGrid(); // Clear the grid on start
+                
+            } else {
+                recordButton.textContent = "🔴 Record";
+                recordButton.style.backgroundColor = '#f44336';
+                statusMessage.textContent = `Recording stopped. Grid is ready for playback.`;
+            }
+        }
+
+        function handleMidiMessage(event) {
+            const [status, note, velocity] = event.data;
+
+            // 1. MIDI Thru: Send the message immediately to the output device (so the user hears what they play)
+            if (output) {
+                output.send(event.data); 
+            }
+
+            // 2. Quantization Logic (ONLY if recording is ON)
+            if (isRecording) {
+                const isNoteOn = status >= NOTE_ON_STATUS && status < NOTE_ON_STATUS + 16 && velocity > 0;
+                
+                // Only process the Note ON event for grid placement
+                if (isNoteOn) {
+                    
+                    // Check if the note is within our display range (C3 to C#5)
+                    if (MIDI_NOTE_MAP[note] !== undefined) {
+                        const rowIndex = MIDI_NOTE_MAP[note];
+                        
+                        // Calculate the time elapsed since recording started
+                        const relativeTime = event.timeStamp - recordingStartTime;
+                        
+                        // QUANTIZATION: Find the nearest step index
+                        const stepIndex = Math.round(relativeTime / stepDurationMs);
+                        
+                        // Ensure it's within the 32-step loop
+                        const quantizedCol = stepIndex % NUM_STEPS; 
+
+                        // Mark the step on the grid
+                        sequence[rowIndex][quantizedCol] = true;
+                        
+                        // Visually update the corresponding step element
+                        const elementIndex = rowIndex * NUM_STEPS + quantizedCol;
+                        const stepElement = sequencerGrid.children[elementIndex];
+                        if (stepElement) {
+                            stepElement.classList.add('on');
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- MIDI Initialization and Port Listing (Modified to include Input) ---
+        async function initializeMidi() {
+            if (!navigator.requestMIDIAccess) {
+                statusMessage.textContent = "Error: Web MIDI API not supported in this browser.";
+                statusMessage.style.color = 'red';
+                return;
+            }
+
+            try {
+                midiAccess = await navigator.requestMIDIAccess();
+                listPorts(midiAccess);
+                
+                document.getElementById('midi-init-button').style.display = 'none';
+                controlsSection.style.display = 'block';
+                statusMessage.textContent = "MIDI Initialized. Select your devices, press RECORD, and play!";
+                statusMessage.style.color = 'green';
+                createGrid();
+            } catch (e) {
+                statusMessage.textContent = `Error: MIDI access failed: ${e.message}`;
+                statusMessage.style.color = 'red';
+            }
+        }
+
+        function listPorts(midi) {
+            // Populate Input Select
+            inputSelect.innerHTML = '';
+            midi.inputs.forEach((port) => {
+                const option = document.createElement('option');
+                option.value = port.id;
+                option.textContent = port.name || `Unnamed Input (${port.id})`;
+                inputSelect.appendChild(option);
+            });
+            inputSelect.onchange = () => {
+                if (input) {
+                    input.onmidimessage = null; // Unhook previous handler
+                }
+                input = midiAccess.inputs.get(inputSelect.value);
+                // Set the main handler for both recording and MIDI Thru
+                input.onmidimessage = handleMidiMessage; 
+                statusMessage.textContent = `Input set to: ${input.name} / Output set to: ${output ? output.name : 'None'}`;
+            };
+            if (inputSelect.options.length > 0) {
+                inputSelect.value = inputSelect.options[0].value;
+                inputSelect.onchange(); 
+            } else {
+                statusMessage.textContent = "No MIDI input devices found. Connect a keyboard.";
+                statusMessage.style.color = 'orange';
+            }
+            
+            // Populate Output Select
+            outputSelect.innerHTML = '';
+            midi.outputs.forEach((port) => {
+                const option = document.createElement('option');
+                option.value = port.id;
+                option.textContent = port.name || `Unnamed Output (${port.id})`;
+                outputSelect.appendChild(option);
+            });
+            outputSelect.onchange = () => {
+                output = midiAccess.outputs.get(outputSelect.value);
+                statusMessage.textContent = `Input set to: ${input ? input.name : 'None'} / Output set to: ${output.name}`;
+            };
+            if (outputSelect.options.length > 0) {
+                outputSelect.value = outputSelect.options[0].value;
+                outputSelect.onchange();
+            } else {
+                statusMessage.textContent = "No MIDI output devices found. Connect a synthesizer.";
+                statusMessage.style.color = 'orange';
+            }
+        }
+    </script>
+</body>
+</html>
