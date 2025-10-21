@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Simple Web Synth with ADSR</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            text-align: center;
+            padding: 20px;
+            background-color: #f4f4f9;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        h2 {
+            color: #333;
+        }
+        #audio-init-button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin-bottom: 20px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+        }
+        .control-group {
+            text-align: left;
+        }
+        .control-group label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #555;
+        }
+        input[type="range"] {
+            width: 100%;
+        }
+        /* Piano Keyboard CSS */
+        .piano {
+            display: flex;
+            justify-content: center;
+            position: relative;
+            height: 150px;
+            margin-top: 20px;
+        }
+        .key {
+            position: absolute;
+            height: 150px;
+            width: 40px;
+            border: 1px solid #000;
+            cursor: pointer;
+            box-sizing: border-box;
+            user-select: none;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            padding-bottom: 5px;
+            font-size: 10px;
+        }
+        .white-key {
+            background-color: #fff;
+            z-index: 1;
+        }
+        .black-key {
+            background-color: #333;
+            color: #fff;
+            height: 100px;
+            width: 25px;
+            z-index: 2;
+        }
+        .key.active {
+            opacity: 0.7;
+            box-shadow: inset 0 0 10px #4CAF50;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Modular Synth Basics 🎶</h2>
+        
+        <button id="audio-init-button" onclick="startAudioContext()">
+            1. Click to Start Audio
+        </button>
+
+        <p id="status-message" style="color: blue; font-style: italic; margin-bottom: 20px;">
+            Audio Context Suspended. Click the button above.
+        </p>
+
+        <div class="controls-grid">
+            <div class="control-group">
+                <label for="wave-select">VCO Waveform</label>
+                <select id="wave-select" onchange="updateSynthParams()">
+                    <option value="sawtooth">Sawtooth (Buzzing)</option>
+                    <option value="square">Square (Hollow/Woodwind)</option>
+                    <option value="sine">Sine (Flute/Pure)</option>
+                    <option value="triangle">Triangle (Soft/Muted)</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label for="master-gain">Master Volume: <span id="gain-val">0.5</span></label>
+                <input type="range" id="master-gain" min="0" max="1" step="0.05" value="0.5" oninput="updateMasterGain(this.value)">
+            </div>
+        </div>
+
+        <div class="controls-grid" style="grid-template-columns: repeat(4, 1fr);">
+            <div class="control-group">
+                <label for="attack-slider">Attack (s): <span id="attack-val">0.01</span></label>
+                <input type="range" id="attack-slider" min="0.005" max="2" step="0.005" value="0.01" oninput="updateSynthParams()">
+            </div>
+            <div class="control-group">
+                <label for="decay-slider">Decay (s): <span id="decay-val">0.3</span></label>
+                <input type="range" id="decay-slider" min="0.05" max="3" step="0.05" value="0.3" oninput="updateSynthParams()">
+            </div>
+            <div class="control-group">
+                <label for="sustain-slider">Sustain (Lvl): <span id="sustain-val">0.5</span></label>
+                <input type="range" id="sustain-slider" min="0" max="1" step="0.05" value="0.5" oninput="updateSynthParams()">
+            </div>
+            <div class="control-group">
+                <label for="release-slider">Release (s): <span id="release-val">0.5</span></label>
+                <input type="range" id="release-slider" min="0.05" max="3" step="0.05" value="0.5" oninput="updateSynthParams()">
+            </div>
+        </div>
+
+        <div class="piano">
+            <div class="key white-key" style="left: 0px;" data-midi="60" onmousedown="handleKey(60, true)" onmouseup="handleKey(60, false)">C4</div>
+            <div class="key black-key" style="left: 30px;" data-midi="61" onmousedown="handleKey(61, true)" onmouseup="handleKey(61, false)"></div>
+            <div class="key white-key" style="left: 40px;" data-midi="62" onmousedown="handleKey(62, true)" onmouseup="handleKey(62, false)">D4</div>
+            <div class="key black-key" style="left: 70px;" data-midi="63" onmousedown="handleKey(63, true)" onmouseup="handleKey(63, false)"></div>
+            <div class="key white-key" style="left: 80px;" data-midi="64" onmousedown="handleKey(64, true)" onmouseup="handleKey(64, false)">E4</div>
+            
+            <div class="key white-key" style="left: 120px;" data-midi="65" onmousedown="handleKey(65, true)" onmouseup="handleKey(65, false)">F4</div>
+            <div class="key black-key" style="left: 150px;" data-midi="66" onmousedown="handleKey(66, true)" onmouseup="handleKey(66, false)"></div>
+            <div class="key white-key" style="left: 160px;" data-midi="67" onmousedown="handleKey(67, true)" onmouseup="handleKey(67, false)">G4</div>
+            <div class="key black-key" style="left: 190px;" data-midi="68" onmousedown="handleKey(68, true)" onmouseup="handleKey(68, false)"></div>
+            <div class="key white-key" style="left: 200px;" data-midi="69" onmousedown="handleKey(69, true)" onmouseup="handleKey(69, false)">A4</div>
+            <div class="key black-key" style="left: 230px;" data-midi="70" onmousedown="handleKey(70, true)" onmouseup="handleKey(70, false)"></div>
+            <div class="key white-key" style="left: 240px;" data-midi="71" onmousedown="handleKey(71, true)" onmouseup="handleKey(71, false)">B4</div>
+            
+            <div class="key white-key" style="left: 280px;" data-midi="72" onmousedown="handleKey(72, true)" onmouseup="handleKey(72, false)">C5</div>
+        </div>
+        <p style="margin-top: 10px; font-size: 12px;">**Note:** The Minimoog and other classic synths use the **ADSR** envelope to shape the volume (VCA) over time.</p>
+    </div>
+
+    <script>
+        // --- Web Audio Setup ---
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+        
+        // Map to keep track of active notes
+        const activeNotes = {}; 
+
+        // Initial Synth Parameters
+        let SYNTH_PARAMS = {
+            wave: 'sawtooth',
+            attack: 0.01,
+            decay: 0.3,
+            sustain: 0.5,
+            release: 0.5,
+            masterGain: 0.5 
+        };
+        
+        // Master Gain Node (VCA)
+        const masterGainNode = audioCtx.createGain();
+        // Set the initial value for the master gain
+        masterGainNode.gain.setValueAtTime(SYNTH_PARAMS.masterGain, audioCtx.currentTime);
+        masterGainNode.connect(audioCtx.destination);
+
+        // --- Audio Context Fix: Resume on first interaction ---
+        function startAudioContext() {
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume().then(() => {
+                    document.getElementById('status-message').textContent = "Audio Context Running! Start playing.";
+                    document.getElementById('audio-init-button').style.display = 'none';
+                }).catch(e => {
+                    document.getElementById('status-message').textContent = `Error starting audio: ${e.message}`;
+                    document.getElementById('status-message').style.color = 'red';
+                });
+            } else {
+                 document.getElementById('status-message').textContent = "Audio Context Running! Start playing.";
+                 document.getElementById('audio-init-button').style.display = 'none';
+            }
+        }
+
+        // --- UI Update Functions ---
+        function updateSynthParams() {
+            // Update ADSR values from sliders
+            SYNTH_PARAMS.attack = parseFloat(document.getElementById('attack-slider').value);
+            SYNTH_PARAMS.decay = parseFloat(document.getElementById('decay-slider').value);
+            SYNTH_PARAMS.sustain = parseFloat(document.getElementById('sustain-slider').value);
+            SYNTH_PARAMS.release = parseFloat(document.getElementById('release-slider').value);
+            
+            // Update Waveform
+            SYNTH_PARAMS.wave = document.getElementById('wave-select').value;
+
+            // Update display values
+            document.getElementById('attack-val').textContent = SYNTH_PARAMS.attack;
+            document.getElementById('decay-val').textContent = SYNTH_PARAMS.decay;
+            document.getElementById('sustain-val').textContent = SYNTH_PARAMS.sustain;
+            document.getElementById('release-val').textContent = SYNTH_PARAMS.release;
+        }
+
+        function updateMasterGain(value) {
+            SYNTH_PARAMS.masterGain = parseFloat(value);
+            document.getElementById('gain-val').textContent = SYNTH_PARAMS.masterGain;
+            // Update the master gain node instantly
+            masterGainNode.gain.setValueAtTime(SYNTH_PARAMS.masterGain, audioCtx.currentTime);
+        }
+
+        // Initialize parameters on load
+        updateSynthParams();
+
+        // --- Core Synthesis Functions ---
+
+        /**
+         * Converts MIDI note number (e.g., 60 for C4) to frequency (Hz).
+         */
+        function midiToFreq(midiNote) {
+            return 440 * Math.pow(2, (midiNote - 69) / 12);
+        }
+
+        /**
+         * Starts a new note (Note ON event).
+         */
+        function startNote(midiNote, velocity = 100) {
+            // CRITICAL: Prevent playing if the context isn't running
+            if (audioCtx.state !== 'running') {
+                document.getElementById('status-message').textContent = "Click 'Start Audio' first!";
+                return; 
+            }
+            
+            // Check if the note is already playing
+            if (activeNotes[midiNote]) {
+                stopNote(midiNote);
+            }
+
+            const now = audioCtx.currentTime;
+            const frequency = midiToFreq(midiNote);
+            const maxAmplitude = velocity / 127; 
+
+            // 1. VCO: Oscillator Node
+            const oscillator = audioCtx.createOscillator();
+            oscillator.type = SYNTH_PARAMS.wave;
+            oscillator.frequency.setValueAtTime(frequency, now);
+
+            // 2. VCA: Gain Node for Envelope
+            const envelopeGain = audioCtx.createGain();
+            envelopeGain.gain.setValueAtTime(0.0001, now); 
+
+            // --- Routing ---
+            oscillator.connect(envelopeGain).connect(masterGainNode);
+
+            // --- ADSR Attack Phase ---
+            envelopeGain.gain.linearRampToValueAtTime(maxAmplitude, now + SYNTH_PARAMS.attack);
+
+            // --- ADSR Decay Phase ---
+            const decayEnd = now + SYNTH_PARAMS.attack + SYNTH_PARAMS.decay;
+            // Use setTargetAtTime for a more natural exponential curve for the decay
+            envelopeGain.gain.setTargetAtTime(SYNTH_PARAMS.sustain * maxAmplitude + 0.0001, now + SYNTH_PARAMS.attack, SYNTH_PARAMS.decay / 5);
+            
+            // Start the oscillator
+            oscillator.start(now);
+
+            // Store the note's nodes
+            activeNotes[midiNote] = {
+                osc: oscillator,
+                gain: envelopeGain,
+                startTime: now
+            };
+        }
+
+        /**
+         * Stops an existing note (Note OFF event).
+         */
+        function stopNote(midiNote) {
+            const note = activeNotes[midiNote];
+            if (!note) return;
+
+            const now = audioCtx.currentTime;
+            
+            // --- ADSR Release Phase ---
+            // Stop all pending automation scheduled before this time
+            note.gain.gain.cancelScheduledValues(now); 
+            // Set the current volume as the start of the release
+            note.gain.gain.setValueAtTime(note.gain.gain.value, now);
+            // Start the exponential ramp down to silence
+            note.gain.gain.exponentialRampToValueAtTime(0.0001, now + SYNTH_PARAMS.release);
+
+            // Stop the oscillator after the release is complete
+            note.osc.stop(now + SYNTH_PARAMS.release);
+
+            // Remove the note from active tracking
+            delete activeNotes[midiNote];
+        }
+
+        // --- Keyboard Handler ---
+        function handleKey(midiNote, isPressed) {
+            // Only proceed if the audio context is running (user has clicked 'Start Audio')
+            if (audioCtx.state !== 'running') {
+                return;
+            }
+            
+            const keyElement = document.querySelector(`.key[data-midi="${midiNote}"]`);
+            
+            if (isPressed) {
+                keyElement.classList.add('active');
+                startNote(midiNote, 100); 
+            } else {
+                keyElement.classList.remove('active');
+                stopNote(midiNote);
+            }
+        }
+    </script>
+</body>
+</html>
