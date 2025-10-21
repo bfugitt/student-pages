@@ -1,0 +1,219 @@
+<div style="text-align: center; padding: 20px; font-family: sans-serif;">
+    <h2>MIDI Recorder for Synthesizers</h2>
+    
+    <button id="midi-init-button" onclick="initializeMidi()" style="padding: 10px 20px; font-size: 16px; cursor: pointer;">
+        1. Initialize MIDI
+    </button>
+    <p id="status-message" style="color: blue; font-weight: bold; margin-top: 10px;">
+        Click the button to start.
+    </p>
+
+    <div id="controls" style="margin-top: 20px; display: none; border: 1px solid #ccc; padding: 15px; border-radius: 8px;">
+        <div style="margin-bottom: 15px;">
+            <p style="font-weight: bold; margin-bottom: 5px;">Input (Keyboard to Record):</p>
+            <select id="midi-input-select" style="padding: 8px; font-size: 14px; width: 80%;"></select>
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+            <p style="font-weight: bold; margin-bottom: 5px;">Output (Synth to Playback):</p>
+            <select id="midi-output-select" style="padding: 8px; font-size: 14px; width: 80%;"></select>
+        </div>
+
+        <div style="display: flex; justify-content: space-around; max-width: 400px; margin: 0 auto;">
+            <button id="record-button" onclick="toggleRecording()" style="padding: 15px 20px; font-size: 16px; background-color: #f44336; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                🔴 Record
+            </button>
+            <button id="play-button" onclick="playbackSequence()" disabled style="padding: 15px 20px; font-size: 16px; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                ▶️ Playback
+            </button>
+            <button onclick="clearSequence()" style="padding: 15px 20px; font-size: 16px; background-color: #333; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                🗑️ Clear
+            </button>
+        </div>
+        <p id="recorded-count" style="margin-top: 15px; font-style: italic;">Notes Recorded: 0</p>
+    </div>
+</div>
+
+<script>
+    let midiAccess = null;
+    let input = null;
+    let output = null;
+    let isRecording = false;
+    let recordingStartTime = 0;
+    let recordedSequence = []; // Stores objects like: {data: Uint8Array, time: relativeTime}
+
+    // MIDI Status Codes (Channel Voice Messages - Channel 1)
+    const NOTE_ON_STATUS = 0x90; // 144
+    const NOTE_OFF_STATUS = 0x80; // 128
+    
+    // DOM Elements
+    const statusMessage = document.getElementById('status-message');
+    const controlsDiv = document.getElementById('controls');
+    const inputSelect = document.getElementById('midi-input-select');
+    const outputSelect = document.getElementById('midi-output-select');
+    const recordButton = document.getElementById('record-button');
+    const playButton = document.getElementById('play-button');
+    const recordedCount = document.getElementById('recorded-count');
+
+    // --- MIDI Initialization ---
+    async function initializeMidi() {
+        if (!navigator.requestMIDIAccess) {
+            statusMessage.textContent = "Error: Web MIDI API not supported in this browser.";
+            statusMessage.style.color = 'red';
+            return;
+        }
+
+        try {
+            midiAccess = await navigator.requestMIDIAccess();
+            listPorts(midiAccess);
+            
+            document.getElementById('midi-init-button').style.display = 'none';
+            controlsDiv.style.display = 'block';
+            statusMessage.textContent = "MIDI Ready. Select your devices and start recording!";
+            statusMessage.style.color = 'green';
+        } catch (e) {
+            statusMessage.textContent = `Error: MIDI access failed: ${e.message}`;
+            statusMessage.style.color = 'red';
+        }
+    }
+
+    function listPorts(midi) {
+        // Populate Input Select
+        inputSelect.innerHTML = '';
+        midi.inputs.forEach((port) => {
+            const option = document.createElement('option');
+            option.value = port.id;
+            option.textContent = port.name || `Unnamed Input (${port.id})`;
+            inputSelect.appendChild(option);
+        });
+        inputSelect.onchange = () => {
+            if (input) {
+                input.onmidimessage = null; // Unhook previous handler
+            }
+            input = midiAccess.inputs.get(inputSelect.value);
+            input.onmidimessage = handleMidiMessage; // Set new handler
+            statusMessage.textContent = `Input set to: ${input.name}`;
+        };
+        // Trigger change to set default input
+        if (inputSelect.options.length > 0) {
+            inputSelect.value = inputSelect.options[0].value;
+            inputSelect.onchange(); 
+        } else {
+            statusMessage.textContent = "No MIDI input devices found. Connect a keyboard.";
+            statusMessage.style.color = 'orange';
+        }
+        
+        // Populate Output Select
+        outputSelect.innerHTML = '';
+        midi.outputs.forEach((port) => {
+            const option = document.createElement('option');
+            option.value = port.id;
+            option.textContent = port.name || `Unnamed Output (${port.id})`;
+            outputSelect.appendChild(option);
+        });
+        outputSelect.onchange = () => {
+            output = midiAccess.outputs.get(outputSelect.value);
+            statusMessage.textContent = `Output set to: ${output.name}`;
+        };
+        // Trigger change to set default output
+        if (outputSelect.options.length > 0) {
+            outputSelect.value = outputSelect.options[0].value;
+            outputSelect.onchange();
+        } else {
+            statusMessage.textContent = "No MIDI output devices found. Connect a synthesizer.";
+            statusMessage.style.color = 'orange';
+        }
+    }
+
+    // --- Recording Logic ---
+    function handleMidiMessage(event) {
+        if (!output) return; 
+
+        const [status] = event.data;
+        
+        // **1. MIDI Thru:** Immediately send the message to the output device
+        output.send(event.data); 
+
+        // **2. Recording:** If recording is active, save the note/event
+        if (isRecording) {
+            // Check if the status byte is a Note On (0x9x) or Note Off (0x8x)
+            // We use >= and < to catch all 16 MIDI channels (0x90 through 0x9F)
+            const isNoteEvent = (status >= NOTE_ON_STATUS && status < NOTE_ON_STATUS + 16) || 
+                                (status >= NOTE_OFF_STATUS && status < NOTE_OFF_STATUS + 16);
+
+            if (isNoteEvent) {
+                 // Calculate time relative to when recording started
+                const relativeTime = event.timeStamp - recordingStartTime;
+                
+                // Store the event: the MIDI data (what happened) and the time (when it happened)
+                recordedSequence.push({
+                    data: event.data,
+                    time: relativeTime
+                });
+                recordedCount.textContent = `Total MIDI Events Recorded: ${recordedSequence.length}`;
+            }
+        }
+    }
+
+    function toggleRecording() {
+        if (!input || !output) {
+            alert("Please select both a MIDI Input and Output device first.");
+            return;
+        }
+
+        isRecording = !isRecording;
+
+        if (isRecording) {
+            // Clear the old sequence and start the timer
+            recordedSequence = [];
+            recordingStartTime = window.performance.now();
+            
+            recordButton.textContent = "🟥 STOP";
+            recordButton.style.backgroundColor = '#cc0000';
+            playButton.disabled = true; 
+            recordedCount.textContent = `Recording... (0 events)`;
+            statusMessage.textContent = `Recording started. Play on your MIDI keyboard.`;
+        } else {
+            // Recording stopped
+            recordButton.textContent = "🔴 Record";
+            recordButton.style.backgroundColor = '#f44336';
+            playButton.disabled = recordedSequence.length === 0;
+            recordedCount.textContent = `Total MIDI Events Recorded: ${recordedSequence.length}`;
+            statusMessage.textContent = `Recording finished. Press 'Playback' to hear it!`;
+        }
+    }
+    
+    function clearSequence() {
+        recordedSequence = [];
+        recordedCount.textContent = `Total MIDI Events Recorded: 0`;
+        playButton.disabled = true;
+        statusMessage.textContent = `Sequence cleared. Ready to record.`;
+    }
+
+    // --- Playback Logic ---
+    function playbackSequence() {
+        if (!output || recordedSequence.length === 0) return;
+
+        playButton.disabled = true;
+        playButton.textContent = "Playing...";
+        statusMessage.textContent = `Playing back sequence...`;
+        
+        // Find the duration of the entire sequence
+        // We use the last event's time to set the timeout for re-enabling the button.
+        const lastEventTime = recordedSequence[recordedSequence.length - 1].time;
+
+        // Schedule each event at its recorded relative time
+        for (const event of recordedSequence) {
+            // window.performance.now() is the current time. Adding event.time schedules it in the future.
+            const timestamp = window.performance.now() + event.time;
+            output.send(event.data, timestamp);
+        }
+
+        // Re-enable the play button when the sequence is completely finished
+        setTimeout(() => {
+            playButton.textContent = "▶️ Playback";
+            playButton.disabled = false;
+            statusMessage.textContent = `Playback finished.`;
+        }, lastEventTime + 100); // 100ms buffer after the last recorded event
+    }
+</script>

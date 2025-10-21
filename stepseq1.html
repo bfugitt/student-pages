@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>16-Step MIDI Sequencer (C Major)</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            text-align: center;
+            padding: 20px;
+            background-color: #f4f4f9;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(16, 1fr);
+            border: 1px solid #ccc;
+            margin-top: 20px;
+        }
+        .step {
+            height: 25px;
+            border: 1px solid #eee;
+            cursor: pointer;
+            background-color: #e0e0e0;
+            transition: background-color 0.1s;
+        }
+        .active {
+            background-color: #64b5f6 !important; /* Blue for the current step */
+            border-color: #1976d2;
+        }
+        .on {
+            background-color: #4CAF50; /* Green for selected notes */
+        }
+        .on.active {
+            background-color: #ff9800 !important; /* Orange when selected and active */
+        }
+        .note-label {
+            display: inline-block;
+            width: 30px;
+            text-align: right;
+            font-size: 12px;
+            font-weight: bold;
+            color: #555;
+            padding-right: 5px;
+        }
+        .row-wrapper {
+            display: flex;
+            align-items: center;
+            width: 100%;
+        }
+        .controls {
+            margin: 20px 0;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+        }
+        .tempo-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .beat-marker {
+            height: 5px;
+            background-color: #ccc;
+        }
+        .beat-marker.strong-beat {
+            background-color: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>16-Step MIDI Sequencer</h2>
+        
+        <button id="midi-init-button" onclick="initializeMidi()" style="padding: 10px 20px; font-size: 16px; cursor: pointer;">
+            1. Initialize MIDI
+        </button>
+        <p id="status-message" style="color: blue; font-weight: bold; margin-top: 10px;">
+            Click the button to start.
+        </p>
+
+        <div id="controls-section" style="display: none;">
+            <p style="font-weight: bold; margin-bottom: 5px;">Output (Synth to Play):</p>
+            <select id="midi-output-select" style="padding: 8px; font-size: 14px; width: 50%; max-width: 300px;"></select>
+
+            <div class="controls">
+                <button id="play-button" onclick="togglePlayback()" style="padding: 15px 30px; font-size: 18px; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                    ▶️ Play
+                </button>
+                <div class="tempo-control">
+                    <label for="bpm-slider">Tempo (BPM):</label>
+                    <input type="range" id="bpm-slider" min="60" max="240" value="120" oninput="updateBPM(this.value)">
+                    <span id="bpm-display">120</span>
+                </div>
+                <button onclick="clearGrid()" style="padding: 15px 30px; font-size: 18px; background-color: #333; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                    🗑️ Clear Grid
+                </button>
+            </div>
+
+            <div id="sequencer-grid"></div>
+        </div>
+    </div>
+
+    <script>
+        // C Major Scale: C4 (60) to C5 (72)
+        // C4, D4, E4, F4, G4, A4, B4, C5
+        const NOTE_MIDI_NUMBERS = [72, 71, 69, 67, 65, 64, 62, 60]; // C5 down to C4
+        const NOTE_NAMES = ["C5", "B4", "A4", "G4", "F4", "E4", "D4", "C4"];
+        const NUM_STEPS = 16;
+        const NUM_ROWS = NOTE_MIDI_NUMBERS.length;
+        const VELOCITY = 100;
+        const CHANNEL = 0; // MIDI Channel 1
+        
+        // State variables
+        let midiAccess = null;
+        let output = null;
+        let isPlaying = false;
+        let currentStep = 0;
+        let bpm = 120;
+        let timerID = null;
+        let stepDurationMs = 0; // Calculated based on BPM
+        
+        // 2D Array to store the grid state (true/false)
+        let sequence = Array(NUM_ROWS).fill(0).map(() => Array(NUM_STEPS).fill(false));
+
+        // DOM Elements
+        const statusMessage = document.getElementById('status-message');
+        const outputSelect = document.getElementById('midi-output-select');
+        const controlsSection = document.getElementById('controls-section');
+        const sequencerGrid = document.getElementById('sequencer-grid');
+        const playButton = document.getElementById('play-button');
+        const bpmDisplay = document.getElementById('bpm-display');
+
+        // --- Core Setup and Grid Generation ---
+        function calculateStepDuration() {
+            // Formula: (60 seconds / BPM) / 4 steps per beat * 1000 ms/second
+            // (120 / BPM) * 1000
+            stepDurationMs = (60 / bpm) / 4 * 1000;
+            if (timerID) { // Restart timer if playing
+                clearInterval(timerID);
+                timerID = setInterval(stepSequencer, stepDurationMs);
+            }
+        }
+        
+        function updateBPM(newBPM) {
+            bpm = parseInt(newBPM);
+            bpmDisplay.textContent = bpm;
+            calculateStepDuration();
+        }
+
+        function createGrid() {
+            sequencerGrid.innerHTML = '';
+            
+            // 1. Create Beat Markers (visual guide for the 4 beats)
+            const beatMarkers = document.createElement('div');
+            beatMarkers.style.display = 'grid';
+            beatMarkers.style.gridTemplateColumns = 'repeat(16, 1fr)';
+            beatMarkers.style.width = 'calc(100% - 35px)'; // Adjust for the note label width
+            beatMarkers.style.marginLeft = '35px';
+            for(let i = 0; i < NUM_STEPS; i++) {
+                const marker = document.createElement('div');
+                marker.className = (i % 4 === 0) ? 'beat-marker strong-beat' : 'beat-marker';
+                beatMarkers.appendChild(marker);
+            }
+            sequencerGrid.appendChild(beatMarkers);
+
+            // 2. Create Rows
+            for (let row = 0; row < NUM_ROWS; row++) {
+                const rowWrapper = document.createElement('div');
+                rowWrapper.className = 'row-wrapper';
+                
+                // Add note label
+                const label = document.createElement('div');
+                label.className = 'note-label';
+                label.textContent = NOTE_NAMES[row];
+                rowWrapper.appendChild(label);
+                
+                // Add steps grid
+                const rowElement = document.createElement('div');
+                rowElement.className = 'grid-container';
+                rowElement.style.width = '100%';
+
+                for (let col = 0; col < NUM_STEPS; col++) {
+                    const stepElement = document.createElement('div');
+                    stepElement.className = 'step';
+                    stepElement.dataset.row = row;
+                    stepElement.dataset.col = col;
+                    
+                    // Highlight the first step of each beat for visual clarity
+                    if (col % 4 === 0) {
+                        stepElement.style.borderLeft = '2px solid #aaa';
+                    }
+
+                    stepElement.onclick = () => toggleStep(row, col, stepElement);
+                    rowElement.appendChild(stepElement);
+                }
+                
+                rowWrapper.appendChild(rowElement);
+                sequencerGrid.appendChild(rowWrapper);
+            }
+            calculateStepDuration();
+        }
+
+        function toggleStep(row, col, element) {
+            sequence[row][col] = !sequence[row][col];
+            element.classList.toggle('on', sequence[row][col]);
+        }
+        
+        function clearGrid() {
+            sequence = Array(NUM_ROWS).fill(0).map(() => Array(NUM_STEPS).fill(false));
+            document.querySelectorAll('.step').forEach(el => el.classList.remove('on'));
+        }
+
+        // --- Sequencer Logic ---
+        function togglePlayback() {
+            if (!output) {
+                alert("Please select a MIDI Output device first.");
+                return;
+            }
+
+            isPlaying = !isPlaying;
+
+            if (isPlaying) {
+                playButton.textContent = "⏸️ Stop";
+                playButton.style.backgroundColor = '#f39c12'; // Orange
+                currentStep = 0; // Start from the beginning
+                timerID = setInterval(stepSequencer, stepDurationMs);
+                statusMessage.textContent = `Playing at ${bpm} BPM...`;
+            } else {
+                playButton.textContent = "▶️ Play";
+                playButton.style.backgroundColor = '#4CAF50'; // Green
+                clearInterval(timerID);
+                timerID = null;
+                // Turn off any currently held notes
+                output.send([0xB0 + CHANNEL, 123, 0]); // All Notes Off (Controller 123)
+                
+                // Clear the active column highlight
+                document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
+                statusMessage.textContent = "Playback stopped.";
+            }
+        }
+
+        function stepSequencer() {
+            const now = window.performance.now();
+
+            // 1. Clear previous column highlight and highlight the current one
+            const steps = document.querySelectorAll('.step');
+            steps.forEach(el => el.classList.remove('active'));
+            
+            // Calculate the range of steps in the current column
+            for (let row = 0; row < NUM_ROWS; row++) {
+                const stepIndex = row * NUM_STEPS + currentStep;
+                steps[stepIndex].classList.add('active');
+            }
+
+            // 2. Process the notes in the current step (column)
+            for (let row = 0; row < NUM_ROWS; row++) {
+                if (sequence[row][currentStep]) {
+                    const noteNumber = NOTE_MIDI_NUMBERS[row];
+                    
+                    // Send Note ON message (0x90)
+                    output.send([0x90 + CHANNEL, noteNumber, VELOCITY], now); 
+                    
+                    // Schedule Note OFF message (0x80) a little before the next step
+                    // This ensures the notes are distinct and don't bleed together
+                    output.send([0x80 + CHANNEL, noteNumber, 0], now + stepDurationMs - 50); 
+                }
+            }
+
+            // 3. Advance to the next step
+            currentStep = (currentStep + 1) % NUM_STEPS;
+        }
+
+        // --- MIDI Initialization ---
+        async function initializeMidi() {
+            if (!navigator.requestMIDIAccess) {
+                statusMessage.textContent = "Error: Web MIDI API not supported in this browser.";
+                statusMessage.style.color = 'red';
+                return;
+            }
+
+            try {
+                midiAccess = await navigator.requestMIDIAccess();
+                listOutputs(midiAccess);
+                
+                document.getElementById('midi-init-button').style.display = 'none';
+                controlsSection.style.display = 'block';
+                statusMessage.textContent = "MIDI Initialized. Select your synth, draw a sequence, and press Play.";
+                statusMessage.style.color = 'green';
+                createGrid();
+            } catch (e) {
+                statusMessage.textContent = `Error: MIDI access failed: ${e.message}`;
+                statusMessage.style.color = 'red';
+            }
+        }
+
+        function listOutputs(midi) {
+            outputSelect.innerHTML = '';
+            midi.outputs.forEach((port) => {
+                const option = document.createElement('option');
+                option.value = port.id;
+                option.textContent = port.name || `Unnamed MIDI Port (${port.id})`;
+                outputSelect.appendChild(option);
+            });
+            outputSelect.onchange = () => {
+                output = midiAccess.outputs.get(outputSelect.value);
+                statusMessage.textContent = `Output set to: ${output.name}`;
+            };
+            
+            if (outputSelect.options.length > 0) {
+                outputSelect.value = outputSelect.options[0].value;
+                outputSelect.onchange();
+            } else {
+                statusMessage.textContent = "No MIDI output devices found. Connect a synthesizer.";
+                statusMessage.style.color = 'orange';
+            }
+        }
+    </script>
+</body>
+</html>

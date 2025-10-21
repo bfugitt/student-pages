@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>MIDI Recorder with Visual Display</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            text-align: center;
+            padding: 20px;
+            background-color: #f4f4f9;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .controls {
+            margin: 20px 0;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+        }
+        .display-area {
+            border: 1px solid #ccc;
+            margin-top: 20px;
+            padding: 10px 0;
+            min-height: 250px; /* Ensure space for the display */
+            background-color: #e8e8e8;
+        }
+        .note-row {
+            display: flex;
+            align-items: center;
+            height: 18px; /* Height for each note pitch row */
+            border-bottom: 1px dotted #ccc;
+            position: relative;
+            overflow: hidden; /* Important for horizontal segments */
+        }
+        .note-label {
+            width: 40px;
+            flex-shrink: 0;
+            text-align: right;
+            font-size: 10px;
+            font-weight: bold;
+            color: #555;
+            padding-right: 5px;
+        }
+        .note-segment {
+            position: absolute;
+            height: 14px;
+            background-color: #4CAF50; /* Green note bar */
+            border-radius: 2px;
+            top: 2px;
+            box-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+        }
+        .playback-line {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background-color: red;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Visual MIDI Recorder</h2>
+        
+        <button id="midi-init-button" onclick="initializeMidi()" style="padding: 10px 20px; font-size: 16px; cursor: pointer;">
+            1. Initialize MIDI
+        </button>
+        <p id="status-message" style="color: blue; font-weight: bold; margin-top: 10px;">
+            Click the button to start.
+        </p>
+
+        <div id="controls-section" style="display: none;">
+            <p style="font-weight: bold; margin-bottom: 5px;">Output (Synth to Playback):</p>
+            <select id="midi-output-select" style="padding: 8px; font-size: 14px; width: 50%; max-width: 300px;"></select>
+
+            <div class="controls">
+                <p>Play on your MIDI keyboard *after* pressing record.</p>
+                <button id="record-button" onclick="toggleRecording()" style="padding: 15px 20px; font-size: 16px; background-color: #f44336; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                    🔴 Record
+                </button>
+                <button id="play-button" onclick="playbackSequence()" disabled style="padding: 15px 20px; font-size: 16px; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                    ▶️ Playback
+                </button>
+                <button onclick="clearSequence()" style="padding: 15px 20px; font-size: 16px; background-color: #333; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                    🗑️ Clear
+                </button>
+            </div>
+            
+            <p id="recorded-count" style="margin-top: 15px; font-style: italic;">Notes Recorded: 0</p>
+            
+            <div class="display-area" id="display-area">
+                <div class="playback-line" id="playback-line" style="display: none;"></div>
+            </div>
+            <p style="font-size: 12px; margin-top: 5px;">Visual display is a timeline of the recorded sequence.</p>
+        </div>
+    </div>
+
+    <script>
+        // --- Configuration ---
+        const NOTE_NAMES = ["C5", "B4", "A4", "G4", "F4", "E4", "D4", "C4", "B3", "A3", "G3", "F3", "E3", "D3", "C3"];
+        // MIDI Note numbers corresponding to the names above (72 down to 48)
+        const NOTE_MIDI_NUMBERS = [72, 71, 69, 67, 65, 64, 62, 60, 59, 57, 55, 53, 52, 50, 48];
+        const NOTE_ROWS_TO_DISPLAY = 15; // Display C3 (48) to C5 (72)
+
+        const MAX_DISPLAY_DURATION_MS = 8000; // 8 seconds maximum for the display width
+        
+        // MIDI Status Codes (Channel Voice Messages - Channel 1)
+        const NOTE_ON_STATUS = 0x90; // 144
+        const NOTE_OFF_STATUS = 0x80; // 128
+        
+        // --- State Variables ---
+        let midiAccess = null;
+        let output = null;
+        let isRecording = false;
+        let recordingStartTime = 0;
+        let recordedEvents = []; // Stores ALL raw MIDI events: {data: Uint8Array, time: relativeTime}
+        let parsedNotes = [];    // Stores Note ON/OFF pairs: {note: number, start: time, end: time, duration: number}
+        let activeNotes = {};    // Tracks notes currently held down: {noteNumber: {start: time, data: Uint8Array}}
+        
+        // --- DOM Elements ---
+        const statusMessage = document.getElementById('status-message');
+        const outputSelect = document.getElementById('midi-output-select');
+        const controlsSection = document.getElementById('controls-section');
+        const recordButton = document.getElementById('record-button');
+        const playButton = document.getElementById('play-button');
+        const recordedCount = document.getElementById('recorded-count');
+        const displayArea = document.getElementById('display-area');
+        const playbackLine = document.getElementById('playback-line');
+        
+        // --- Setup and Grid Generation ---
+
+        function createDisplayRows() {
+            displayArea.innerHTML = ''; // Clear existing content
+            displayArea.appendChild(playbackLine);
+            for (let i = 0; i < NOTE_ROWS_TO_DISPLAY; i++) {
+                const noteNumber = NOTE_MIDI_NUMBERS[i];
+                const noteName = NOTE_NAMES[i];
+
+                const rowWrapper = document.createElement('div');
+                rowWrapper.className = 'note-row';
+                rowWrapper.dataset.note = noteNumber;
+
+                const label = document.createElement('div');
+                label.className = 'note-label';
+                label.textContent = noteName;
+                rowWrapper.appendChild(label);
+                
+                // Add a vertical line for the start of the sequence
+                const zeroLine = document.createElement('div');
+                zeroLine.style.position = 'absolute';
+                zeroLine.style.left = '40px'; // To the right of the label
+                zeroLine.style.top = '0';
+                zeroLine.style.bottom = '0';
+                zeroLine.style.width = '1px';
+                zeroLine.style.backgroundColor = '#aaa';
+                rowWrapper.appendChild(zeroLine);
+
+                displayArea.appendChild(rowWrapper);
+            }
+        }
+
+        // --- MIDI Initialization (Same as before) ---
+        async function initializeMidi() {
+            if (!navigator.requestMIDIAccess) {
+                statusMessage.textContent = "Error: Web MIDI API not supported in this browser.";
+                statusMessage.style.color = 'red';
+                return;
+            }
+            try {
+                midiAccess = await navigator.requestMIDIAccess();
+                listOutputs(midiAccess);
+                document.getElementById('midi-init-button').style.display = 'none';
+                controlsSection.style.display = 'block';
+                statusMessage.textContent = "MIDI Initialized. Select your synth and start recording!";
+                statusMessage.style.color = 'green';
+                createDisplayRows(); // Create the visual area
+            } catch (e) {
+                statusMessage.textContent = `Error: MIDI access failed: ${e.message}`;
+                statusMessage.style.color = 'red';
+            }
+        }
+
+        function listOutputs(midi) {
+            outputSelect.innerHTML = '';
+            midi.outputs.forEach((port) => {
+                const option = document.createElement('option');
+                option.value = port.id;
+                option.textContent = port.name || `Unnamed MIDI Port (${port.id})`;
+                outputSelect.appendChild(option);
+            });
+            outputSelect.onchange = () => {
+                output = midiAccess.outputs.get(outputSelect.value);
+                statusMessage.textContent = `Output set to: ${output.name}`;
+            };
+            if (outputSelect.options.length > 0) {
+                outputSelect.value = outputSelect.options[0].value;
+                outputSelect.onchange();
+            } else {
+                statusMessage.textContent = "No MIDI output devices found. Connect a synthesizer.";
+                statusMessage.style.color = 'orange';
+            }
+        }
+        
+        // --- Recording and Parsing Logic ---
+
+        function handleMidiMessage(event) {
+            if (!output) return; 
+
+            const [status, note, velocity] = event.data;
+            const relativeTime = event.timeStamp - recordingStartTime;
+            
+            // 1. MIDI Thru: Immediately send the message to the output device
+            output.send(event.data); 
+
+            // 2. Recording & Parsing
+            if (isRecording) {
+                // Record all relevant events (Note On/Off)
+                const isNoteOn = status >= NOTE_ON_STATUS && status < NOTE_ON_STATUS + 16;
+                const isNoteOff = status >= NOTE_OFF_STATUS && status < NOTE_OFF_STATUS + 16 || (isNoteOn && velocity === 0);
+
+                if (isNoteOn) {
+                    // Start of a new note event
+                    if (activeNotes[note]) {
+                        // This handles if a note is pressed twice without release (rare, but good to handle)
+                        // Close the previous note first
+                        endActiveNote(note, relativeTime); 
+                    }
+                    activeNotes[note] = { start: relativeTime, data: event.data };
+                    recordedEvents.push({ data: event.data, time: relativeTime });
+                } else if (isNoteOff) {
+                    // End of a note event
+                    endActiveNote(note, relativeTime);
+                    recordedEvents.push({ data: event.data, time: relativeTime });
+                }
+
+                recordedCount.textContent = `MIDI Events Recorded: ${recordedEvents.length}`;
+            }
+        }
+        
+        function endActiveNote(note, endTime) {
+            if (activeNotes[note]) {
+                const noteData = activeNotes[note];
+                parsedNotes.push({
+                    note: note,
+                    start: noteData.start,
+                    end: endTime,
+                    duration: endTime - noteData.start
+                });
+                delete activeNotes[note];
+                recordedCount.textContent = `Notes Parsed: ${parsedNotes.length}`;
+            }
+        }
+
+        function toggleRecording() {
+            if (!output) {
+                alert("Please select a MIDI Output device first.");
+                return;
+            }
+            if (isRecording) {
+                // STOP Recording
+                isRecording = false;
+                recordButton.textContent = "🔴 Record";
+                recordButton.style.backgroundColor = '#f44336';
+                playButton.disabled = parsedNotes.length === 0;
+                
+                // End any hanging notes (notes still held down when stop is pressed)
+                const stopTime = window.performance.now() - recordingStartTime;
+                for (const note in activeNotes) {
+                    endActiveNote(parseInt(note), stopTime);
+                }
+
+                statusMessage.textContent = `Recording stopped. ${parsedNotes.length} notes recorded.`;
+                displaySequence(); // Draw the visualization
+                
+            } else {
+                // START Recording
+                isRecording = true;
+                recordedEvents = [];
+                parsedNotes = [];
+                activeNotes = {};
+                recordingStartTime = window.performance.now();
+                
+                recordButton.textContent = "🟥 STOP";
+                recordButton.style.backgroundColor = '#cc0000';
+                playButton.disabled = true;
+                recordedCount.textContent = `Recording...`;
+                statusMessage.textContent = `Recording started. Play on your MIDI keyboard.`;
+            }
+        }
+        
+        function clearSequence() {
+            recordedEvents = [];
+            parsedNotes = [];
+            activeNotes = {};
+            recordedCount.textContent = `Notes Recorded: 0`;
+            playButton.disabled = true;
+            statusMessage.textContent = `Sequence cleared. Ready to record.`;
+            createDisplayRows(); // Redraw empty rows
+            if (lineAnimation) cancelAnimationFrame(lineAnimation);
+            playbackLine.style.display = 'none';
+        }
+
+        // --- Visual Display Logic ---
+
+        function displaySequence() {
+            createDisplayRows(); // Clear and redraw rows
+            
+            // Determine the total time of the recorded sequence or use the max display time
+            let sequenceDuration = parsedNotes.length > 0 
+                ? Math.max(...parsedNotes.map(n => n.end)) 
+                : 0;
+            
+            // Use MAX_DISPLAY_DURATION_MS to determine the visual width scale
+            const totalDisplayWidth = displayArea.clientWidth - 45; // Width minus label
+
+            if (sequenceDuration > MAX_DISPLAY_DURATION_MS) {
+                 statusMessage.textContent += ` (Sequence was ${Math.round(sequenceDuration/1000)}s, only first 8s shown.)`;
+            }
+            
+            // Iterate over all parsed notes and draw them
+            parsedNotes.forEach(note => {
+                const noteRow = document.querySelector(`.note-row[data-note="${note.note}"]`);
+
+                // Only draw notes that are within our display range
+                if (noteRow && note.start < MAX_DISPLAY_DURATION_MS) {
+                    const start_ms = note.start;
+                    const duration_ms = Math.min(note.duration, MAX_DISPLAY_DURATION_MS - start_ms);
+                    
+                    // Calculate pixel position and width based on the time-to-pixel ratio
+                    const scaleFactor = totalDisplayWidth / MAX_DISPLAY_DURATION_MS;
+                    const pixelStart = start_ms * scaleFactor;
+                    const pixelWidth = duration_ms * scaleFactor;
+
+                    const noteSegment = document.createElement('div');
+                    noteSegment.className = 'note-segment';
+                    noteSegment.style.left = `${40 + pixelStart}px`; // 40px offset for the label
+                    noteSegment.style.width = `${pixelWidth}px`;
+                    
+                    noteRow.appendChild(noteSegment);
+                }
+            });
+        }
+        
+        // --- Playback Logic with Visual Line ---
+        let lineAnimation = null;
+
+        function playbackSequence() {
+            if (!output || recordedEvents.length === 0) return;
+
+            playButton.disabled = true;
+            playButton.textContent = "Playing...";
+            statusMessage.textContent = `Playing back sequence...`;
+            playbackLine.style.display = 'block';
+            
+            const totalDisplayWidth = displayArea.clientWidth - 45;
+            let sequenceDuration = parsedNotes.length > 0 
+                ? Math.max(...parsedNotes.map(n => n.end)) 
+                : 0;
+            
+            const maxTime = Math.min(sequenceDuration, MAX_DISPLAY_DURATION_MS);
+
+            // Schedule events (using recordedEvents array)
+            const startTime = window.performance.now();
+            for (const event of recordedEvents) {
+                const timestamp = startTime + event.time;
+                output.send(event.data, timestamp);
+            }
+
+            // Animation Loop for the Playback Line
+            function animateLine(currentTime) {
+                const elapsedTime = currentTime - startTime;
+                
+                if (elapsedTime > sequenceDuration) {
+                    // Sequence finished
+                    playButton.textContent = "▶️ Playback";
+                    playButton.disabled = false;
+                    statusMessage.textContent = `Playback finished.`;
+                    playbackLine.style.display = 'none';
+                    return;
+                }
+
+                // Calculate the line position
+                let visualTime = Math.min(elapsedTime, maxTime);
+                const linePosition = (visualTime / MAX_DISPLAY_DURATION_MS) * totalDisplayWidth + 40;
+                playbackLine.style.left = `${linePosition}px`;
+
+                lineAnimation = requestAnimationFrame(animateLine);
+            }
+
+            lineAnimation = requestAnimationFrame(animateLine);
+            
+            // Set a final timeout to ensure the line stops and controls re-enable
+            setTimeout(() => {
+                if(lineAnimation) cancelAnimationFrame(lineAnimation);
+                playbackLine.style.display = 'none';
+                playButton.textContent = "▶️ Playback";
+                playButton.disabled = false;
+                statusMessage.textContent = `Playback finished.`;
+            }, sequenceDuration + 100);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,125 @@
+<div style="text-align: center; padding: 20px; font-family: sans-serif;">
+    <p id="status-message" style="color: blue;">1. Click the 'Initialize MIDI' button.</p>
+    <button id="midi-init-button" onclick="initializeMidi()" style="padding: 10px 20px; font-size: 16px; cursor: pointer;">Initialize MIDI</button>
+
+    <div id="controls" style="margin-top: 20px; display: none;">
+        <p>2. Select your Synthesizer:</p>
+        <select id="midi-output-select" style="padding: 8px; font-size: 14px; margin-bottom: 15px;"></select>
+        <button onclick="playChord()" style="padding: 15px 30px; font-size: 18px; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">
+            🎶 Play C-E-G (1 Second Each)
+        </button>
+    </div>
+</div>
+
+<script>
+    // MIDI Note Numbers: C4=60, E4=64, G4=67
+    const NOTES = [60, 64, 67];
+    const NOTE_DURATION_MS = 1000;
+    const VELOCITY = 100; // 0-127
+    const CHANNEL = 0; // MIDI channel 1 (0-15)
+
+    let midiAccess = null;
+    let output = null;
+
+    const statusMessage = document.getElementById('status-message');
+    const controlsDiv = document.getElementById('controls');
+    const outputSelect = document.getElementById('midi-output-select');
+
+    // --- MIDI Initialization ---
+    async function initializeMidi() {
+        if (!navigator.requestMIDIAccess) {
+            statusMessage.textContent = "Error: Web MIDI API is not supported in this browser.";
+            statusMessage.style.color = 'red';
+            return;
+        }
+
+        try {
+            statusMessage.textContent = "Requesting MIDI access and permissions...";
+            // The Web MIDI API may still prompt for permission, even on a local file.
+            midiAccess = await navigator.requestMIDIAccess();
+            listOutputs(midiAccess);
+
+            document.getElementById('midi-init-button').style.display = 'none';
+            controlsDiv.style.display = 'block';
+            statusMessage.textContent = "MIDI Initialized. Select a device and press 'Play'.";
+            statusMessage.style.color = 'green';
+        } catch (e) {
+            statusMessage.textContent = `Error: MIDI access denied or failed: ${e.message}`;
+            statusMessage.style.color = 'red';
+        }
+    }
+
+    function listOutputs(midi) {
+        outputSelect.innerHTML = '';
+        const outputs = midi.outputs.values();
+        for (let entry of outputs) {
+            const outputPort = entry;
+            const option = document.createElement('option');
+            option.value = outputPort.id;
+            option.textContent = outputPort.name || `Unnamed MIDI Port (${outputPort.id})`;
+            outputSelect.appendChild(option);
+        }
+
+        // Set the current output based on selection change
+        outputSelect.onchange = () => {
+            const selectedId = outputSelect.value;
+            output = midiAccess.outputs.get(selectedId);
+            statusMessage.textContent = `Selected: ${output.name}`;
+        };
+
+        // Select the first one by default
+        const firstOutputId = outputSelect.options.length > 0 ? outputSelect.options[0].value : null;
+        if (firstOutputId) {
+            output = midiAccess.outputs.get(firstOutputId);
+            statusMessage.textContent = `Selected: ${output.name}`;
+        } else {
+            statusMessage.textContent = "No MIDI output devices found. Is your synth connected?";
+            statusMessage.style.color = 'orange';
+            controlsDiv.style.display = 'none';
+        }
+    }
+
+    // --- Sequencer Logic ---
+    function sendMidiMessage(note, velocity, type, time) {
+        if (!output) return;
+
+        // MIDI messages are arrays of 3 bytes:
+        // [status byte, data byte 1, data byte 2]
+        const status = type + CHANNEL;
+        const message = [status, note, velocity];
+        output.send(message, window.performance.now() + time);
+    }
+
+    async function playChord() {
+        if (!output) {
+            alert("Please initialize MIDI and select an output device.");
+            return;
+        }
+
+        // Disable button while playing
+        const playButton = document.querySelector('button[onclick="playChord()"]');
+        playButton.disabled = true;
+        playButton.textContent = "Playing...";
+
+        const NOTE_ON = 0x90; // Note On (144)
+        const NOTE_OFF = 0x80; // Note Off (128)
+        let timeOffset = 0;
+
+        for (const note of NOTES) {
+            // 1. Send Note ON
+            sendMidiMessage(note, VELOCITY, NOTE_ON, timeOffset);
+
+            // 2. Schedule Note OFF after 1 second (1000ms)
+            sendMidiMessage(note, 0, NOTE_OFF, timeOffset + NOTE_DURATION_MS);
+
+            // 3. Advance the time for the next note
+            timeOffset += NOTE_DURATION_MS;
+        }
+
+        // Re-enable button after the sequence is finished
+        setTimeout(() => {
+            playButton.disabled = false;
+            playButton.textContent = "🎶 Play C-E-G (1 Second Each)";
+        }, timeOffset + 100); // Add a small buffer time
+    }
+</script>
