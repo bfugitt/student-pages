@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Educational Dual-VCO Synth & Sequencer (ADSR & WAV Recorder)</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            text-align: center;
+            padding: 10px;
+            background-color: #333; 
+            color: #ccc;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: #202020;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5); 
+        }
+        h2 { color: #00ffff; margin-bottom: 10px; }
+        
+        /* Control Panel Layout */
+        .controls-panel {
+            display: grid;
+            grid-template-columns: 2fr 2fr 3fr; 
+            gap: 15px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #555;
+            margin-bottom: 20px;
+        }
+        .synth-section {
+            padding: 10px;
+            border: 1px solid #555;
+            border-radius: 6px;
+            background-color: #2b2b2b;
+        }
+        .synth-section h3 { 
+            margin-top: 0; 
+            color: #00ffff; 
+            font-size: 1.1em;
+            text-transform: uppercase;
+        }
+        
+        /* Individual Control Group Styling */
+        .control-group { 
+            text-align: left; 
+            margin-bottom: 10px;
+        }
+        .control-group label {
+            display: block;
+            font-weight: bold;
+            color: #aaa;
+            font-size: 12px;
+            margin-bottom: 3px;
+        }
+        input[type="range"] { 
+            width: 100%; 
+            -webkit-appearance: none;
+            height: 5px;
+            background: #444;
+            border-radius: 3px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 15px;
+            width: 15px;
+            border-radius: 50%;
+            background: #00ffff;
+            cursor: pointer;
+        }
+
+        /* VCO Range Selector */
+        .range-select {
+            display: flex;
+            justify-content: space-between;
+            background-color: #383838;
+            padding: 5px;
+            border-radius: 4px;
+        }
+        .range-select button {
+            background: none;
+            border: 1px solid #666;
+            color: #ccc;
+            padding: 3px 8px;
+            cursor: pointer;
+            font-size: 10px;
+            flex-grow: 1;
+            margin: 0 2px;
+            border-radius: 3px;
+        }
+        .range-select button.active-range {
+            background-color: #00ffff;
+            color: #222;
+            border-color: #00ffff;
+            font-weight: bold;
+        }
+        select {
+            width: 100%;
+            padding: 5px;
+            background: #444;
+            color: white;
+            border: 1px solid #666;
+            border-radius: 3px;
+        }
+
+        /* Sequencer Section */
+        #sequencer-section {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #2b2b2b;
+            border-radius: 8px;
+        }
+        .seq-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .seq-controls button {
+            padding: 8px 15px;
+            font-size: 14px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+        }
+        #play-button { background-color: #4CAF50; color: white; }
+        #play-button.playing { background-color: #f39c12; }
+        #clear-button { background-color: #e74c3c; color: white; }
+
+        /* Grid CSS */
+        .grid-wrapper {
+            border: 1px solid #555;
+            background-color: #1a1a1a;
+        }
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(16, 1fr); 
+        }
+        .step {
+            height: 25px; 
+            border: 1px solid #333;
+            cursor: pointer;
+        }
+        .step:hover { background-color: #444; }
+        .active-col {
+            background-color: #00ffff !important; 
+            border-color: #0099ff;
+        }
+        .on { background-color: #4CAF50; } 
+        .on.active-col { background-color: #ff9800 !important; } 
+        .step[data-col='3'], .step[data-col='7'], .step[data-col='11'] { border-right: 2px solid #555; }
+        .step[data-col='15'] { border-right: none; }
+
+        /* Keyboard CSS */
+        .piano-section {
+            padding: 20px 0;
+            background-color: #202020;
+        }
+        .piano {
+            display: flex;
+            justify-content: center;
+            position: relative;
+            height: 150px;
+        }
+        .key {
+            position: absolute;
+            height: 150px;
+            width: 40px;
+            border: 1px solid #000;
+            cursor: pointer;
+            box-sizing: border-box;
+            user-select: none;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            padding-bottom: 5px;
+            font-size: 10px;
+        }
+        .white-key {
+            background-color: #fff;
+            color: #333;
+            z-index: 1;
+        }
+        .black-key {
+            background-color: #333;
+            color: #fff;
+            height: 100px;
+            width: 25px;
+            z-index: 2;
+        }
+        .key.active {
+            opacity: 0.7;
+            box-shadow: inset 0 0 10px #00ffff;
+        }
+        .white-key[data-midi='60'], .white-key[data-midi='72'] { 
+            background-color: #eee;
+            font-weight: bold;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Minimoog-Style Educational Synth</h2>
+        <p id="status-message" style="color: #00ffff; font-style: italic;">
+            Click the 'Start Audio' button below to begin.
+        </p>
+
+        <div class="controls-panel">
+
+            <div class="synth-section">
+                <h3>VCO 1</h3>
+                <div class="control-group">
+                    <label>Range (Foot ')</label>
+                    <div class="range-select" id="vco1-range-buttons">
+                        <button data-octave="-2" onclick="setVcoRange(1, -2)">32'</button>
+                        <button data-octave="-1" onclick="setVcoRange(1, -1)">16'</button>
+                        <button data-octave="0" class="active-range" onclick="setVcoRange(1, 0)">8'</button>
+                        <button data-octave="1" onclick="setVcoRange(1, 1)">4'</button>
+                        <button data-octave="2" onclick="setVcoRange(1, 2)">2'</button>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label for="vco1-fine-tune">Fine Tune (Cents): <span id="vco1-fine-val">0</span></label>
+                    <input type="range" id="vco1-fine-tune" min="-50" max="50" step="1" value="0" oninput="updateSynthParams()">
+                </div>
+                <div class="control-group">
+                    <label for="vco1-wave">Waveform</label>
+                    <select id="vco1-wave" onchange="updateSynthParams()">
+                        <option value="sawtooth">Sawtooth</option>
+                        <option value="square">Square</option>
+                        <option value="triangle">Triangle</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="synth-section">
+                <h3>VCO 2</h3>
+                <div class="control-group">
+                    <label>Range (Foot ')</label>
+                    <div class="range-select" id="vco2-range-buttons">
+                        <button data-octave="-2" onclick="setVcoRange(2, -2)">32'</button>
+                        <button data-octave="-1" onclick="setVcoRange(2, -1)">16'</button>
+                        <button data-octave="0" class="active-range" onclick="setVcoRange(2, 0)">8'</button>
+                        <button data-octave="1" onclick="setVcoRange(2, 1)">4'</button>
+                        <button data-octave="2" onclick="setVcoRange(2, 2)">2'</button>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label for="vco2-fine-tune">Fine Tune (Cents): <span id="vco2-fine-val">5</span></label>
+                    <input type="range" id="vco2-fine-tune" min="-50" max="50" step="1" value="5" oninput="updateSynthParams()">
+                </div>
+                <div class="control-group">
+                    <label for="vco2-wave">Waveform</label>
+                    <select id="vco2-wave" onchange="updateSynthParams()">
+                        <option value="sawtooth">Sawtooth</option>
+                        <option value="square">Square</option>
+                        <option value="triangle">Triangle</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="synth-section">
+                <h3>VCF & Envelope (ADSR)</h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div style="border-right: 1px solid #444; padding-right: 10px;">
+                        <div class="control-group">
+                            <label for="cutoff-slider">VCF Cutoff (Hz): <span id="cutoff-val">8000</span></label>
+                            <input type="range" id="cutoff-slider" min="50" max="15000" step="10" value="8000" oninput="updateSynthParams()">
+                        </div>
+                        <div class="control-group">
+                            <label for="resonance-slider">VCF Resonance (Q): <span id="resonance-val">0.5</span></label>
+                            <input type="range" id="resonance-slider" min="0.1" max="15" step="0.1" value="0.5" oninput="updateSynthParams()">
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="control-group">
+                            <label for="attack-slider">Attack (s): <span id="attack-val">0.01</span></label>
+                            <input type="range" id="attack-slider" min="0.005" max="2" step="0.005" value="0.01" oninput="updateSynthParams()">
+                        </div>
+                        <div class="control-group">
+                            <label for="decay-slider">Decay (s): <span id="decay-val">0.3</span></label>
+                            <input type="range" id="decay-slider" min="0.05" max="3" step="0.05" value="0.3" oninput="updateSynthParams()">
+                        </div>
+                        <div class="control-group">
+                            <label for="sustain-slider">Sustain (Lvl): <span id="sustain-val">0.5</span></label>
+                            <input type="range" id="sustain-slider" min="0" max="1" step="0.05" value="0.5" oninput="updateSynthParams()">
+                        </div>
+                         <div class="control-group">
+                            <label for="release-slider">Release (s): <span id="release-val">0.5</span></label>
+                            <input type="range" id="release-slider" min="0.05" max="3" step="0.05" value="0.5" oninput="updateSynthParams()">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="control-group" style="margin-top: 10px;">
+                    <label for="master-gain">Master Volume: <span id="gain-val">0.5</span></label>
+                    <input type="range" id="master-gain" min="0" max="1" step="0.05" value="0.5" oninput="updateSynthParams()">
+                </div>
+            </div>
+        </div>
+
+        <button style="margin-bottom: 20px;" id="audio-init-button" onclick="startAudioContext()">
+            Click to Start Audio
+        </button>
+
+        <div class="piano-section">
+            <div class="piano">
+                <div class="key white-key" style="left: 0px;" data-midi="48" onmousedown="handleKey(48, true)" onmouseup="handleKey(48, false)">C3</div>
+                <div class="key black-key" style="left: 30px;" data-midi="49" onmousedown="handleKey(49, true)" onmouseup="handleKey(49, false)"></div>
+                <div class="key white-key" style="left: 40px;" data-midi="50" onmousedown="handleKey(50, true)" onmouseup="handleKey(50, false)">D</div>
+                <div class="key black-key" style="left: 70px;" data-midi="51" onmousedown="handleKey(51, true)" onmouseup="handleKey(51, false)"></div>
+                <div class="key white-key" style="left: 80px;" data-midi="52" onmousedown="handleKey(52, true)" onmouseup="handleKey(52, false)">E</div>
+                
+                <div class="key white-key" style="left: 120px;" data-midi="53" onmousedown="handleKey(53, true)" onmouseup="handleKey(53, false)">F</div>
+                <div class="key black-key" style="left: 150px;" data-midi="54" onmousedown="handleKey(54, true)" onmouseup="handleKey(54, false)"></div>
+                <div class="key white-key" style="left: 160px;" data-midi="55" onmousedown="handleKey(55, true)" onmouseup="handleKey(55, false)">G</div>
+                <div class="key black-key" style="left: 190px;" data-midi="56" onmousedown="handleKey(56, true)" onmouseup="handleKey(56, false)"></div>
+                <div class="key white-key" style="left: 200px;" data-midi="57" onmousedown="handleKey(57, true)" onmouseup="handleKey(57, false)">A</div>
+                <div class="key black-key" style="left: 230px;" data-midi="58" onmousedown="handleKey(58, true)" onmouseup="handleKey(58, false)"></div>
+                <div class="key white-key" style="left: 240px;" data-midi="59" onmousedown="handleKey(59, true)" onmouseup="handleKey(59, false)">B</div>
+                
+                <div class="key white-key" style="left: 280px;" data-midi="60" onmousedown="handleKey(60, true)" onmouseup="handleKey(60, false)">C4</div>
+                <div class="key black-key" style="left: 310px;" data-midi="61" onmousedown="handleKey(61, true)" onmouseup="handleKey(61, false)"></div>
+                <div class="key white-key" style="left: 320px;" data-midi="62" onmousedown="handleKey(62, true)" onmouseup="handleKey(62, false)">D</div>
+                <div class="key black-key" style="left: 350px;" data-midi="63" onmousedown="handleKey(63, true)" onmouseup="handleKey(63, false)"></div>
+                <div class="key white-key" style="left: 360px;" data-midi="64" onmousedown="handleKey(64, true)" onmouseup="handleKey(64, false)">E</div>
+                
+                <div class="key white-key" style="left: 400px;" data-midi="65" onmousedown="handleKey(65, true)" onmouseup="handleKey(65, false)">F</div>
+                <div class="key black-key" style="left: 430px;" data-midi="66" onmousedown="handleKey(66, true)" onmouseup="handleKey(66, false)"></div>
+                <div class="key white-key" style="left: 440px;" data-midi="67" onmousedown="handleKey(67, true)" onmouseup="handleKey(67, false)">G</div>
+                <div class="key black-key" style="left: 470px;" data-midi="68" onmousedown="handleKey(68, true)" onmouseup="handleKey(68, false)"></div>
+                <div class="key white-key" style="left: 480px;" data-midi="69" onmousedown="handleKey(69, true)" onmouseup="handleKey(69, false)">A</div>
+                <div class="key black-key" style="left: 510px;" data-midi="70" onmousedown="handleKey(70, true)" onmouseup="handleKey(70, false)"></div>
+                <div class="key white-key" style="left: 520px;" data-midi="71" onmousedown="handleKey(71, true)" onmouseup="handleKey(71, false)">B</div>
+                
+                <div class="key white-key" style="left: 560px;" data-midi="72" onmousedown="handleKey(72, true)" onmouseup="handleKey(72, false)">C5</div>
+            </div>
+            <p style="font-size: 12px; color: #aaa;">Keyboard can play chords (Polyphonic)</p>
+        </div>
+
+
+        <div id="sequencer-section">
+            <div class="seq-controls">
+                <button id="play-button" onclick="togglePlayback()">▶️ Play Sequencer</button>
+                
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <label for="bpm-slider" style="font-size: 14px; color: #ccc;">Tempo (BPM):</label>
+                    <input type="range" id="bpm-slider" min="60" max="240" value="120" oninput="updateBPM(this.value)" style="width: 150px;">
+                    <span id="bpm-display" style="color: #00ffff; font-weight: bold;">120</span>
+                </div>
+                
+                <button id="clear-button" onclick="clearGrid()">🗑️ Clear Grid</button>
+            </div>
+
+            <div class="grid-wrapper">
+                <div class="grid-container" id="sequencer-grid"></div>
+            </div>
+            <p style="font-size: 12px; color: #aaa; margin-top: 5px;">8 notes (C4-C5) x 16 steps (16th notes)</p>
+        </div>
+        
+        <div id="recorder-section" class="synth-section" style="margin-top: 20px;">
+            <h3>Loop Recorder (WAV) 💾</h3>
+            <div style="display: flex; justify-content: space-around; align-items: center; gap: 10px;">
+                <div class="control-group" style="width: 40%;">
+                    <label for="loop-count">Loops to Record: <span id="loop-count-val">8</span></label>
+                    <input type="range" id="loop-count" min="1" max="8" step="1" value="8" oninput="updateRecordLoopCount()">
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 5px; width: 40%;">
+                    <button id="record-button" onclick="toggleRecording()" disabled style="background-color: #e74c3c; color: white; padding: 10px; font-weight: bold;">
+                        🔴 Start Recording
+                    </button>
+                    <p id="record-status" style="font-size: 12px; color: #aaa; margin: 0;">Record 8 loops for a perfect track.</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- Global Web Audio Context & Nodes ---
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+        
+        const activeNotes = {}; 
+        let masterGainNode = null;
+        let masterFilterNode = null;
+
+        // --- Sequencer State ---
+        const C_MAJOR_SCALE = [72, 71, 69, 67, 65, 64, 62, 60]; 
+        const NUM_STEPS = 16; 
+        const NUM_ROWS = C_MAJOR_SCALE.length; 
+        let isPlaying = false;
+        let currentStep = 0;
+        let bpm = 120;
+        let timerID = null;
+        let stepDurationMs = 0; 
+        let sequence = Array(NUM_ROWS).fill(0).map(() => Array(NUM_STEPS).fill(false));
+
+
+        // --- Recording State ---
+        let recorder = null;             // The ScriptProcessorNode used for capturing
+        let recording = false;           // State flag
+        let audioDataBuffers = [];       // Array to hold the raw audio data
+        let recordLoopCount = 8;         // Total loops to record (default 8)
+        let currentLoop = 0;             // Counter for the current loop being recorded
+
+
+        // --- Synth Parameters ---
+        let SYNTH_PARAMS = {
+            vco1: { wave: 'sawtooth', rangeOctave: 0, fineTuneCents: 0 },
+            vco2: { wave: 'sawtooth', rangeOctave: 0, fineTuneCents: 5 },
+            vcf: { cutoff: 8000, resonance: 0.5 },
+            global: { masterGain: 0.5 },
+            adsr: { attack: 0.01, decay: 0.3, sustain: 0.5, release: 0.5 } 
+        };
+
+        // --- Utility Functions ---
+        function midiToFreq(midiNote, octaveOffset, fineTuneCents) {
+            const adjustedNote = midiNote + (octaveOffset * 12) + (fineTuneCents / 100);
+            return 440 * Math.pow(2, (adjustedNote - 69) / 12);
+        }
+
+        function getVcoTuning(vcoNum) {
+            const vco = SYNTH_PARAMS['vco' + vcoNum];
+            return {
+                octaveOffset: vco.rangeOctave,
+                fineTuneCents: vco.fineTuneCents
+            };
+        }
+
+        // --- Parameter Update & Initialization ---
+        function updateSynthParams() {
+            // ... (VCO, VCF, ADSR, Global parameter reading - UNCHANGED FROM PREVIOUS)
+            SYNTH_PARAMS.vco1.fineTuneCents = parseFloat(document.getElementById('vco1-fine-tune').value);
+            SYNTH_PARAMS.vco1.wave = document.getElementById('vco1-wave').value;
+            document.getElementById('vco1-fine-val').textContent = SYNTH_PARAMS.vco1.fineTuneCents;
+            
+            SYNTH_PARAMS.vco2.fineTuneCents = parseFloat(document.getElementById('vco2-fine-tune').value);
+            SYNTH_PARAMS.vco2.wave = document.getElementById('vco2-wave').value;
+            document.getElementById('vco2-fine-val').textContent = SYNTH_PARAMS.vco2.fineTuneCents;
+
+            SYNTH_PARAMS.vcf.cutoff = parseFloat(document.getElementById('cutoff-slider').value);
+            SYNTH_PARAMS.vcf.resonance = parseFloat(document.getElementById('resonance-slider').value);
+            document.getElementById('cutoff-val').textContent = SYNTH_PARAMS.vcf.cutoff;
+            document.getElementById('resonance-val').textContent = SYNTH_PARAMS.vcf.resonance.toFixed(1);
+
+            SYNTH_PARAMS.adsr.attack = parseFloat(document.getElementById('attack-slider').value);
+            SYNTH_PARAMS.adsr.decay = parseFloat(document.getElementById('decay-slider').value);
+            SYNTH_PARAMS.adsr.sustain = parseFloat(document.getElementById('sustain-slider').value);
+            SYNTH_PARAMS.adsr.release = parseFloat(document.getElementById('release-slider').value);
+            document.getElementById('attack-val').textContent = SYNTH_PARAMS.adsr.attack;
+            document.getElementById('decay-val').textContent = SYNTH_PARAMS.adsr.decay;
+            document.getElementById('sustain-val').textContent = SYNTH_PARAMS.adsr.sustain;
+            document.getElementById('release-val').textContent = SYNTH_PARAMS.adsr.release;
+
+            SYNTH_PARAMS.global.masterGain = parseFloat(document.getElementById('master-gain').value);
+            document.getElementById('gain-val').textContent = SYNTH_PARAMS.global.masterGain.toFixed(2);
+
+            const now = audioCtx.currentTime;
+            if (masterGainNode) {
+                masterGainNode.gain.setValueAtTime(SYNTH_PARAMS.global.masterGain, now);
+            }
+            if (masterFilterNode) {
+                masterFilterNode.frequency.setValueAtTime(SYNTH_PARAMS.vcf.cutoff, now);
+                masterFilterNode.Q.setValueAtTime(SYNTH_PARAMS.vcf.resonance, now);
+            }
+        }
+        
+        function updateRecordLoopCount() {
+            recordLoopCount = parseInt(document.getElementById('loop-count').value);
+            document.getElementById('loop-count-val').textContent = recordLoopCount;
+            document.getElementById('record-status').textContent = `Record ${recordLoopCount} loops for a perfect track.`;
+        }
+
+        function setVcoRange(vcoNum, octaveOffset) {
+            const vcoKey = 'vco' + vcoNum;
+            SYNTH_PARAMS[vcoKey].rangeOctave = octaveOffset;
+            
+            const sectionId = vcoKey + '-range-buttons';
+            document.querySelectorAll(`#${sectionId} button`).forEach(btn => {
+                btn.classList.toggle('active-range', parseInt(btn.dataset.octave) === octaveOffset);
+            });
+            updateSynthParams();
+        }
+
+        function initializeGlobalNodes() {
+            masterFilterNode = audioCtx.createBiquadFilter();
+            masterFilterNode.type = 'lowpass';
+            masterGainNode = audioCtx.createGain();
+            
+            // --- RECORDER INITIALIZATION: ScriptProcessorNode ---
+            // 4096 buffer size, 2 input, 2 output (Stereo)
+            recorder = audioCtx.createScriptProcessor(4096, 2, 2);
+            recorder.onaudioprocess = processAudio; 
+            
+            // Connect Synth Path: Filter -> Gain (VCA) -> Speakers
+            masterFilterNode.connect(masterGainNode);
+            masterGainNode.connect(audioCtx.destination); 
+            
+            // Connect Synth output to the Recorder input
+            masterGainNode.connect(recorder);
+            // The recorder must connect to the destination to ensure it keeps running
+            recorder.connect(audioCtx.destination); 
+            
+            updateSynthParams();
+            updateRecordLoopCount();
+            
+            // Enable the record button
+            document.getElementById('record-button').disabled = false;
+        }
+
+        function startAudioContext() {
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume().then(() => {
+                    document.getElementById('status-message').textContent = "Audio Context Running! Play the keyboard or sequencer.";
+                    document.getElementById('audio-init-button').style.display = 'none';
+                });
+            }
+        }
+
+        // --- Note Control Functions ---
+        function startNote(midiNote) {
+            const now = audioCtx.currentTime;
+            if (audioCtx.state !== 'running') { return; }
+            if (activeNotes[midiNote]) { stopNote(midiNote); }
+
+            const vco1 = audioCtx.createOscillator();
+            const vco2 = audioCtx.createOscillator();
+            const noteGain = audioCtx.createGain();
+
+            const vco1Tune = getVcoTuning(1);
+            const vco2Tune = getVcoTuning(2);
+            const adsr = SYNTH_PARAMS.adsr;
+
+            vco1.type = SYNTH_PARAMS.vco1.wave;
+            vco1.frequency.setValueAtTime(midiToFreq(midiNote, vco1Tune.octaveOffset, vco1Tune.fineTuneCents), now);
+            vco2.type = SYNTH_PARAMS.vco2.wave;
+            vco2.frequency.setValueAtTime(midiToFreq(midiNote, vco2Tune.octaveOffset, vco2Tune.fineTuneCents), now);
+            
+            // ADSR Envelope (VCA)
+            noteGain.gain.setValueAtTime(0.0001, now);
+            noteGain.gain.linearRampToValueAtTime(0.5, now + adsr.attack); 
+            // Decay: target Sustain level
+            noteGain.gain.setTargetAtTime(adsr.sustain * 0.5 + 0.0001, now + adsr.attack, adsr.decay / 5); 
+
+            vco1.connect(noteGain);
+            vco2.connect(noteGain);
+            noteGain.connect(masterFilterNode); 
+
+            vco1.start(now);
+            vco2.start(now);
+
+            activeNotes[midiNote] = { vco1, vco2, noteGain };
+        }
+
+        function stopNote(midiNote) {
+            const voice = activeNotes[midiNote];
+            if (!voice) return;
+
+            const now = audioCtx.currentTime;
+            const releaseTime = SYNTH_PARAMS.adsr.release;
+            
+            // RELEASE Phase (VCA)
+            voice.noteGain.gain.cancelScheduledValues(now);
+            voice.noteGain.gain.setValueAtTime(voice.noteGain.gain.value, now);
+            voice.noteGain.gain.exponentialRampToValueAtTime(0.0001, now + releaseTime);
+
+            voice.vco1.stop(now + releaseTime);
+            voice.vco2.stop(now + releaseTime);
+
+            delete activeNotes[midiNote];
+        }
+
+        // --- Keyboard Handler ---
+        function handleKey(midiNote, isPressed) {
+            const keyElement = document.querySelector(`.key[data-midi="${midiNote}"]`);
+            
+            if (isPressed) {
+                keyElement.classList.add('active');
+                startNote(midiNote);
+            } else {
+                keyElement.classList.remove('active');
+                stopNote(midiNote);
+            }
+        }
+
+        // --- Sequencer Logic ---
+        function calculateStepDuration() {
+            stepDurationMs = (60 / bpm) / 4 * 1000; 
+
+            if (isPlaying) {
+                clearInterval(timerID);
+                timerID = setInterval(stepSequencer, stepDurationMs);
+            }
+        }
+        
+        function updateBPM(newBPM) {
+            bpm = parseInt(newBPM);
+            document.getElementById('bpm-display').textContent = bpm;
+            calculateStepDuration();
+        }
+
+        function togglePlayback() {
+             if (audioCtx.state !== 'running') {
+                document.getElementById('status-message').textContent = "Click the 'Start Audio' button first!";
+                return;
+            }
+
+            isPlaying = !isPlaying;
+
+            if (isPlaying) {
+                document.getElementById('play-button').textContent = "⏸️ Stop Sequencer";
+                document.getElementById('play-button').classList.add('playing');
+                currentStep = 0; 
+                timerID = setInterval(stepSequencer, stepDurationMs);
+            } else {
+                document.getElementById('play-button').textContent = "▶️ Play Sequencer";
+                document.getElementById('play-button').classList.remove('playing');
+                clearInterval(timerID);
+                timerID = null;
+                document.querySelectorAll('.step').forEach(el => el.classList.remove('active-col'));
+            }
+        }
+
+        function stepSequencer() {
+            // Visual updates
+            document.querySelectorAll('.step').forEach(el => el.classList.remove('active-col'));
+            for (let row = 0; row < NUM_ROWS; row++) {
+                const elementIndex = row * NUM_STEPS + currentStep;
+                const stepElement = document.getElementById('sequencer-grid').children[elementIndex];
+                if (stepElement) {
+                    stepElement.classList.add('active-col');
+                }
+            }
+
+            // Play notes
+            for (let row = 0; row < NUM_ROWS; row++) {
+                if (sequence[row][currentStep]) {
+                    const noteNumber = C_MAJOR_SCALE[row];
+                    startNote(noteNumber);
+                    
+                    const gateTime = (stepDurationMs / 1000) * 0.8; 
+                    setTimeout(() => stopNote(noteNumber), gateTime * 1000); 
+                }
+            }
+
+            // --- RECORDING AUTO-STOP LOGIC ---
+            // If the step moves from the last step (15) to the first step (0)
+            if (currentStep === 0) {
+                if (isPlaying && recording) {
+                    currentLoop++;
+                    document.getElementById('record-status').textContent = `Recording Loop ${currentLoop} of ${recordLoopCount}`;
+                    
+                    if (currentLoop > recordLoopCount) {
+                        // AUTO-STOP AND FINALIZE
+                        toggleRecording(); // This handles both stopping the recording and the sequencer
+                    }
+                }
+            }
+            
+            currentStep = (currentStep + 1) % NUM_STEPS;
+        }
+
+        // --- Recording Functions ---
+
+        // Audio processing hook (captures samples)
+        function processAudio(e) {
+            if (!recording) return;
+
+            // Capture raw stereo audio buffers
+            audioDataBuffers.push({
+                left: new Float32Array(e.inputBuffer.getChannelData(0)),
+                right: new Float32Array(e.inputBuffer.getChannelData(1))
+            });
+        }
+        
+        // Starts or Stops recording
+        function toggleRecording() {
+            if (recording) {
+                // Stop Recording
+                if (isPlaying) { togglePlayback(); } // Stop sequencer if running
+                finalizeRecording();
+            } else {
+                // Start Recording
+                if (!isPlaying) {
+                     togglePlayback(); // Start the sequencer if it's not running
+                }
+                
+                recording = true;
+                currentLoop = 0;
+                audioDataBuffers = []; // Clear old data
+                
+                document.getElementById('record-button').textContent = 'STOP & DOWNLOAD';
+                document.getElementById('record-status').textContent = `Recording Loop 0 of ${recordLoopCount}`;
+                document.getElementById('record-button').style.backgroundColor = '#2c3e50'; 
+            }
+        }
+        
+        // Handles WAV encoding and file download
+        function finalizeRecording() {
+            recording = false;
+            
+            // Visual feedback update
+            document.getElementById('record-button').textContent = '🔴 Start Recording';
+            document.getElementById('record-button').style.backgroundColor = '#e74c3c';
+            document.getElementById('record-status').textContent = 'Processing and Downloading WAV...';
+            
+            // 1. Merge all captured buffers
+            const buffers = mergeBuffers(audioDataBuffers);
+
+            // 2. Encode the merged data into a WAV Blob
+            const wavBlob = encodeWAV(buffers.left, buffers.right, audioCtx.sampleRate);
+
+            // 3. Create a download link and click it
+            const url = URL.createObjectURL(wavBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `synth_loop_${recordLoopCount}x_${Date.now()}.wav`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            // 4. Cleanup
+            URL.revokeObjectURL(url);
+            audioDataBuffers = [];
+            currentLoop = 0;
+            document.getElementById('record-status').textContent = `Download Complete: synth_loop_${recordLoopCount}x.wav`;
+        }
+
+        // --- WAV Encoding Helper Functions ---
+
+        function mergeBuffers(audioDataBuffers) {
+            let recLength = 0;
+            for (let i = 0; i < audioDataBuffers.length; i++) {
+                recLength += audioDataBuffers[i].left.length;
+            }
+            
+            const resultL = new Float32Array(recLength);
+            const resultR = new Float32Array(recLength);
+            let offset = 0;
+
+            for (let i = 0; i < audioDataBuffers.length; i++) {
+                resultL.set(audioDataBuffers[i].left, offset);
+                resultR.set(audioDataBuffers[i].right, offset);
+                offset += audioDataBuffers[i].left.length;
+            }
+
+            return { left: resultL, right: resultR, length: recLength };
+        }
+
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+
+        function encodeWAV(samplesL, samplesR, sampleRate) {
+            const numChannels = 2;
+            const numSamples = samplesL.length;
+            const buffer = new ArrayBuffer(44 + numSamples * numChannels * 2);
+
+            const view = new DataView(buffer);
+            const writeIndex = (offset, data) => view.setUint16(offset, data, true);
+            const writeLong = (offset, data) => view.setUint32(offset, data, true);
+
+            // RIFF chunk
+            writeString(view, 0, 'RIFF');
+            writeLong(4, 36 + numSamples * numChannels * 2);
+            writeString(view, 8, 'WAVE');
+            
+            // fmt sub-chunk
+            writeString(view, 12, 'fmt ');
+            writeLong(16, 16);
+            writeIndex(20, 1); // Audio format (PCM)
+            writeIndex(22, numChannels);
+            writeLong(24, sampleRate);
+            writeLong(28, sampleRate * numChannels * 2); 
+            writeIndex(32, numChannels * 2); // Block align
+            writeIndex(34, 16); // Bits per sample
+            
+            // data sub-chunk
+            writeString(view, 36, 'data');
+            writeLong(40, numSamples * numChannels * 2);
+
+            // Write the actual audio data (16-bit PCM)
+            let offset = 44;
+            for (let i = 0; i < numSamples; i++, offset += 4) {
+                let sampleL = Math.max(-1, Math.min(1, samplesL[i]));
+                let sampleR = Math.max(-1, Math.min(1, samplesR[i]));
+                
+                // Convert to 16-bit integer and write (Little Endian)
+                view.setInt16(offset, sampleL * 32767, true); 
+                view.setInt16(offset + 2, sampleR * 32767, true); 
+            }
+
+            return new Blob([view], { type: 'audio/wav' });
+        }
+
+
+        // --- Grid Generation and Interaction ---
+        function createGrid() {
+            const sequencerGrid = document.getElementById('sequencer-grid');
+            sequencerGrid.innerHTML = '';
+
+            for (let row = 0; row < NUM_ROWS; row++) {
+                for (let col = 0; col < NUM_STEPS; col++) {
+                    const stepElement = document.createElement('div');
+                    stepElement.className = 'step';
+                    stepElement.dataset.row = row;
+                    stepElement.dataset.col = col;
+                    
+                    stepElement.onclick = () => {
+                        sequence[row][col] = !sequence[row][col];
+                        stepElement.classList.toggle('on', sequence[row][col]);
+                    };
+                    sequencerGrid.appendChild(stepElement);
+                }
+            }
+            calculateStepDuration();
+        }
+        
+        function clearGrid() {
+            sequence = Array(NUM_ROWS).fill(0).map(() => Array(NUM_STEPS).fill(false));
+            document.querySelectorAll('.step').forEach(el => el.classList.remove('on'));
+        }
+
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeGlobalNodes();
+            createGrid();
+        });
+    </script>
+</body>
+</html>
