@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Dual-VCO Polyphonic Synth (Minimoog Style)</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            text-align: center;
+            padding: 20px;
+            background-color: #f4f4f9;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        h2 { color: #333; margin-bottom: 20px; }
+        
+        /* Control Panel Layout */
+        .controls-panel {
+            display: grid;
+            grid-template-columns: 1fr 1fr; /* Two main columns for VCOs */
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .vco-section {
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #e8e8e8;
+        }
+        .vco-section h3 { margin-top: 0; color: #555; }
+
+        /* VCF and Global Controls */
+        #global-controls {
+            grid-column: 1 / span 2; /* Span across both columns */
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            padding: 15px;
+            border: 2px solid #333;
+            border-radius: 8px;
+            background-color: #f0f0f0;
+        }
+        .control-group { text-align: left; }
+        .control-group label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #555;
+            font-size: 14px;
+        }
+        input[type="range"] { width: 100%; }
+
+        /* Keyboard CSS */
+        .piano {
+            display: flex;
+            justify-content: center;
+            position: relative;
+            height: 150px;
+            margin-top: 20px;
+        }
+        .key {
+            position: absolute;
+            height: 150px;
+            width: 40px;
+            border: 1px solid #000;
+            cursor: pointer;
+            box-sizing: border-box;
+            user-select: none;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            padding-bottom: 5px;
+            font-size: 10px;
+        }
+        .white-key {
+            background-color: #fff;
+            z-index: 1;
+        }
+        .black-key {
+            background-color: #333;
+            color: #fff;
+            height: 100px;
+            width: 25px;
+            z-index: 2;
+        }
+        .key.active {
+            opacity: 0.7;
+            box-shadow: inset 0 0 10px #4CAF50;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Dual-VCO Analog-Style Poly Synth</h2>
+        <p id="status-message" style="color: blue; font-style: italic;">
+            Click to start audio and play the keyboard.
+        </p>
+
+        <div class="controls-panel">
+
+            <div class="vco-section" id="vco1-section">
+                <h3>VCO 1 (Primary)</h3>
+                <div class="control-group">
+                    <label for="vco1-tune">Tune (Semitones): <span id="vco1-tune-val">0</span></label>
+                    <input type="range" id="vco1-tune" min="-12" max="12" step="0.01" value="0" oninput="updateSynthParams()">
+                </div>
+                <div class="control-group">
+                    <label for="vco1-wave">Waveform</label>
+                    <select id="vco1-wave" onchange="updateSynthParams()">
+                        <option value="sawtooth">Sawtooth</option>
+                        <option value="square">Square</option>
+                        <option value="sine">Sine</option>
+                        <option value="triangle">Triangle</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="vco-section" id="vco2-section">
+                <h3>VCO 2 (Detune/Interval)</h3>
+                <div class="control-group">
+                    <label for="vco2-tune">Tune (Semitones): <span id="vco2-tune-val">0.05</span></label>
+                    <input type="range" id="vco2-tune" min="-12" max="12" step="0.01" value="0.05" oninput="updateSynthParams()">
+                </div>
+                <div class="control-group">
+                    <label for="vco2-wave">Waveform</label>
+                    <select id="vco2-wave" onchange="updateSynthParams()">
+                        <option value="sawtooth">Sawtooth</option>
+                        <option value="square">Square</option>
+                        <option value="sine">Sine</option>
+                        <option value="triangle">Triangle</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div id="global-controls">
+                <div class="control-group">
+                    <label for="cutoff-slider">VCF Cutoff (Hz): <span id="cutoff-val">8000</span></label>
+                    <input type="range" id="cutoff-slider" min="50" max="20000" step="10" value="8000" oninput="updateSynthParams()">
+                </div>
+                <div class="control-group">
+                    <label for="resonance-slider">VCF Resonance (Q): <span id="resonance-val">0.5</span></label>
+                    <input type="range" id="resonance-slider" min="0.1" max="15" step="0.1" value="0.5" oninput="updateSynthParams()">
+                </div>
+                <div class="control-group">
+                    <label for="master-gain">Master Volume: <span id="gain-val">0.5</span></label>
+                    <input type="range" id="master-gain" min="0" max="1" step="0.05" value="0.5" oninput="updateSynthParams()">
+                </div>
+            </div>
+        </div>
+
+
+        <div class="piano">
+            <div class="key white-key" style="left: 0px;" data-midi="48" onmousedown="handleKey(48, true)" onmouseup="handleKey(48, false)">C3</div>
+            <div class="key black-key" style="left: 30px;" data-midi="49" onmousedown="handleKey(49, true)" onmouseup="handleKey(49, false)"></div>
+            <div class="key white-key" style="left: 40px;" data-midi="50" onmousedown="handleKey(50, true)" onmouseup="handleKey(50, false)">D</div>
+            <div class="key black-key" style="left: 70px;" data-midi="51" onmousedown="handleKey(51, true)" onmouseup="handleKey(51, false)"></div>
+            <div class="key white-key" style="left: 80px;" data-midi="52" onmousedown="handleKey(52, true)" onmouseup="handleKey(52, false)">E</div>
+            
+            <div class="key white-key" style="left: 120px;" data-midi="53" onmousedown="handleKey(53, true)" onmouseup="handleKey(53, false)">F</div>
+            <div class="key black-key" style="left: 150px;" data-midi="54" onmousedown="handleKey(54, true)" onmouseup="handleKey(54, false)"></div>
+            <div class="key white-key" style="left: 160px;" data-midi="55" onmousedown="handleKey(55, true)" onmouseup="handleKey(55, false)">G</div>
+            <div class="key black-key" style="left: 190px;" data-midi="56" onmousedown="handleKey(56, true)" onmouseup="handleKey(56, false)"></div>
+            <div class="key white-key" style="left: 200px;" data-midi="57" onmousedown="handleKey(57, true)" onmouseup="handleKey(57, false)">A</div>
+            <div class="key black-key" style="left: 230px;" data-midi="58" onmousedown="handleKey(58, true)" onmouseup="handleKey(58, false)"></div>
+            <div class="key white-key" style="left: 240px;" data-midi="59" onmousedown="handleKey(59, true)" onmouseup="handleKey(59, false)">B</div>
+            
+            <div class="key white-key" style="left: 280px;" data-midi="60" onmousedown="handleKey(60, true)" onmouseup="handleKey(60, false)">C4</div>
+            <div class="key black-key" style="left: 310px;" data-midi="61" onmousedown="handleKey(61, true)" onmouseup="handleKey(61, false)"></div>
+            <div class="key white-key" style="left: 320px;" data-midi="62" onmousedown="handleKey(62, true)" onmouseup="handleKey(62, false)">D</div>
+            <div class="key black-key" style="left: 350px;" data-midi="63" onmousedown="handleKey(63, true)" onmouseup="handleKey(63, false)"></div>
+            <div class="key white-key" style="left: 360px;" data-midi="64" onmousedown="handleKey(64, true)" onmouseup="handleKey(64, false)">E</div>
+            
+            <div class="key white-key" style="left: 400px;" data-midi="65" onmousedown="handleKey(65, true)" onmouseup="handleKey(65, false)">F</div>
+            <div class="key black-key" style="left: 430px;" data-midi="66" onmousedown="handleKey(66, true)" onmouseup="handleKey(66, false)"></div>
+            <div class="key white-key" style="left: 440px;" data-midi="67" onmousedown="handleKey(67, true)" onmouseup="handleKey(67, false)">G</div>
+            <div class="key black-key" style="left: 470px;" data-midi="68" onmousedown="handleKey(68, true)" onmouseup="handleKey(68, false)"></div>
+            <div class="key white-key" style="left: 480px;" data-midi="69" onmousedown="handleKey(69, true)" onmouseup="handleKey(69, false)">A</div>
+            <div class="key black-key" style="left: 510px;" data-midi="70" onmousedown="handleKey(70, true)" onmouseup="handleKey(70, false)"></div>
+            <div class="key white-key" style="left: 520px;" data-midi="71" onmousedown="handleKey(71, true)" onmouseup="handleKey(71, false)">B</div>
+            
+            <div class="key white-key" style="left: 560px;" data-midi="72" onmousedown="handleKey(72, true)" onmouseup="handleKey(72, false)">C5</div>
+        </div>
+        <p style="margin-top: 10px; font-size: 12px;">**Polyphony:** Press and hold multiple keys to hear chords and the effect of detuning VCO 2.</p>
+    </div>
+
+    <script>
+        // --- Global Web Audio Context & Nodes ---
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+        
+        // Map to hold all active notes and their corresponding audio nodes (for polyphony)
+        const activeNotes = {}; 
+
+        // Global Output Nodes
+        let masterGainNode = null;
+        let masterFilterNode = null;
+
+        // --- Synth Parameters ---
+        let SYNTH_PARAMS = {
+            vco1: { wave: 'sawtooth', tune: 0 },
+            vco2: { wave: 'sawtooth', tune: 0.05 },
+            vcf: { cutoff: 8000, resonance: 0.5 },
+            global: { masterGain: 0.5 },
+            adsr: { attack: 0.01, release: 0.5 } // Simplified for keys
+        };
+
+        // --- Utility Functions ---
+        function midiToFreq(midiNote, tuneSemitones = 0) {
+            // Apply tuning offset to the MIDI note before converting to frequency
+            const adjustedNote = midiNote + tuneSemitones;
+            return 440 * Math.pow(2, (adjustedNote - 69) / 12);
+        }
+
+        // --- Parameter Update & Initialization ---
+        function updateSynthParams() {
+            // VCO 1
+            SYNTH_PARAMS.vco1.tune = parseFloat(document.getElementById('vco1-tune').value);
+            SYNTH_PARAMS.vco1.wave = document.getElementById('vco1-wave').value;
+            document.getElementById('vco1-tune-val').textContent = SYNTH_PARAMS.vco1.tune.toFixed(2);
+
+            // VCO 2
+            SYNTH_PARAMS.vco2.tune = parseFloat(document.getElementById('vco2-tune').value);
+            SYNTH_PARAMS.vco2.wave = document.getElementById('vco2-wave').value;
+            document.getElementById('vco2-tune-val').textContent = SYNTH_PARAMS.vco2.tune.toFixed(2);
+
+            // VCF
+            SYNTH_PARAMS.vcf.cutoff = parseFloat(document.getElementById('cutoff-slider').value);
+            SYNTH_PARAMS.vcf.resonance = parseFloat(document.getElementById('resonance-slider').value);
+            document.getElementById('cutoff-val').textContent = SYNTH_PARAMS.vcf.cutoff;
+            document.getElementById('resonance-val').textContent = SYNTH_PARAMS.vcf.resonance.toFixed(1);
+
+            // Global
+            SYNTH_PARAMS.global.masterGain = parseFloat(document.getElementById('master-gain').value);
+            document.getElementById('gain-val').textContent = SYNTH_PARAMS.global.masterGain.toFixed(2);
+
+            // Update Global Nodes (Master Gain and Filter)
+            if (masterGainNode) {
+                masterGainNode.gain.setValueAtTime(SYNTH_PARAMS.global.masterGain, audioCtx.currentTime);
+            }
+            if (masterFilterNode) {
+                masterFilterNode.frequency.setValueAtTime(SYNTH_PARAMS.vcf.cutoff, audioCtx.currentTime);
+                masterFilterNode.Q.setValueAtTime(SYNTH_PARAMS.vcf.resonance, audioCtx.currentTime);
+            }
+        }
+        
+        function initializeGlobalNodes() {
+            // Create a single Gain Node for master volume
+            masterGainNode = audioCtx.createGain();
+            masterGainNode.gain.setValueAtTime(SYNTH_PARAMS.global.masterGain, audioCtx.currentTime);
+            
+            // Create a single Filter Node for the whole output (Minimoog style)
+            masterFilterNode = audioCtx.createBiquadFilter();
+            masterFilterNode.type = 'lowpass';
+            
+            // Connect the Master Filter to the Master Gain
+            masterFilterNode.connect(masterGainNode);
+            masterGainNode.connect(audioCtx.destination);
+        }
+
+
+        // --- Note Control Functions ---
+        function startNote(midiNote) {
+            const now = audioCtx.currentTime;
+            
+            // Resume context on first interaction
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+                document.getElementById('status-message').textContent = "Audio Context Running! Play on.";
+            }
+            
+            // Check if note is already playing (for proper re-triggering)
+            if (activeNotes[midiNote]) {
+                stopNote(midiNote);
+            }
+
+            // --- Individual Voice Nodes ---
+            const vco1 = audioCtx.createOscillator();
+            const vco2 = audioCtx.createOscillator();
+            const noteGain = audioCtx.createGain(); // VCA for this specific note
+
+            // 1. Set Parameters
+            vco1.type = SYNTH_PARAMS.vco1.wave;
+            vco1.frequency.setValueAtTime(midiToFreq(midiNote, SYNTH_PARAMS.vco1.tune), now);
+            vco2.type = SYNTH_PARAMS.vco2.wave;
+            vco2.frequency.setValueAtTime(midiToFreq(midiNote, SYNTH_PARAMS.vco2.tune), now);
+            
+            // 2. AD Envelope (VCA)
+            noteGain.gain.setValueAtTime(0.0001, now);
+            noteGain.gain.linearRampToValueAtTime(0.5, now + SYNTH_PARAMS.adsr.attack); // Peak volume is 0.5 per note
+
+            // 3. Connect Voice
+            // VCOs sum into the note's VCA (Gain)
+            vco1.connect(noteGain);
+            vco2.connect(noteGain);
+            
+            // Note's VCA feeds the Master Filter
+            noteGain.connect(masterFilterNode);
+
+            // 4. Start
+            vco1.start(now);
+            vco2.start(now);
+
+            // Store the voice nodes for polyphonic control
+            activeNotes[midiNote] = { 
+                vco1, 
+                vco2, 
+                noteGain 
+            };
+        }
+
+        function stopNote(midiNote) {
+            const voice = activeNotes[midiNote];
+            if (!voice) return;
+
+            const now = audioCtx.currentTime;
+            
+            // --- Release Envelope (VCA) ---
+            voice.noteGain.gain.cancelScheduledValues(now);
+            voice.noteGain.gain.setValueAtTime(voice.noteGain.gain.value, now);
+            voice.noteGain.gain.exponentialRampToValueAtTime(0.0001, now + SYNTH_PARAMS.adsr.release);
+
+            // Stop the oscillators after release
+            voice.vco1.stop(now + SYNTH_PARAMS.adsr.release);
+            voice.vco2.stop(now + SYNTH_PARAMS.adsr.release);
+
+            // Remove the note from active tracking
+            delete activeNotes[midiNote];
+        }
+
+
+        // --- Keyboard Handler ---
+        function handleKey(midiNote, isPressed) {
+            const keyElement = document.querySelector(`.key[data-midi="${midiNote}"]`);
+            
+            if (isPressed) {
+                keyElement.classList.add('active');
+                startNote(midiNote);
+            } else {
+                keyElement.classList.remove('active');
+                stopNote(midiNote);
+            }
+        }
+
+
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeGlobalNodes();
+            updateSynthParams(); // Reads initial values and sets the global filter/gain
+        });
+    </script>
+</body>
+</html>
