@@ -381,458 +381,556 @@
     </div>
 
     <script>
-        // --- Global Web Audio Context & Nodes ---
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        const audioCtx = new AudioContext();
-        
-        const activeNotes = {}; 
-        let masterGainNode = null;
-        let masterFilterNode = null;
+   // --- Global Web Audio Context & Nodes ---
+const AudioContext = window.AudioContext || window.webkitAudioContext;
+const audioCtx = new AudioContext();
 
-        // --- Sequencer State ---
-        const C_MAJOR_SCALE = [72, 71, 69, 67, 65, 64, 62, 60]; 
-        const NUM_STEPS = 16; 
-        const NUM_ROWS = C_MAJOR_SCALE.length; 
-        let isPlaying = false;
-        let currentStep = 0;
-        let bpm = 120;
-        let timerID = null;
-        let stepDurationMs = 0; 
-        let sequence = Array(NUM_ROWS).fill(0).map(() => Array(NUM_STEPS).fill(false));
+const activeNotes = {};
+let masterGainNode = null;
+let masterFilterNode = null;
 
+// --- Sequencer State (UPDATED FOR CHAINING) ---
+const C_MAJOR_SCALE = [72, 71, 69, 67, 65, 64, 62, 60]; 
+let NUM_STEPS = 16; 
+const NUM_ROWS = C_MAJOR_SCALE.length; // Fixed at 8
+let isPlaying = false;
+let currentStep = 0;
+let bpm = 120;
+let timerID = null;
+let stepDurationMs = 0; 
 
-        // --- Recording State ---
-        let recorder = null;             // The ScriptProcessorNode used for capturing
-        let recording = false;           // State flag
-        let audioDataBuffers = [];       // Array to hold the raw audio data
-        let recordLoopCount = 8;         // Total loops to record (default 8)
-        let currentLoop = 0;             // Counter for the current loop being recorded
-
-
-        // --- Synth Parameters ---
-        let SYNTH_PARAMS = {
-            vco1: { wave: 'sawtooth', rangeOctave: 0, fineTuneCents: 0 },
-            vco2: { wave: 'sawtooth', rangeOctave: 0, fineTuneCents: 5 },
-            vcf: { cutoff: 8000, resonance: 0.5 },
-            global: { masterGain: 0.5 },
-            adsr: { attack: 0.01, decay: 0.3, sustain: 0.5, release: 0.5 } 
-        };
-
-        // --- Utility Functions ---
-        function midiToFreq(midiNote, octaveOffset, fineTuneCents) {
-            const adjustedNote = midiNote + (octaveOffset * 12) + (fineTuneCents / 100);
-            return 440 * Math.pow(2, (adjustedNote - 69) / 12);
-        }
-
-        function getVcoTuning(vcoNum) {
-            const vco = SYNTH_PARAMS['vco' + vcoNum];
-            return {
-                octaveOffset: vco.rangeOctave,
-                fineTuneCents: vco.fineTuneCents
-            };
-        }
-
-        // --- Parameter Update & Initialization ---
-        function updateSynthParams() {
-            // ... (VCO, VCF, ADSR, Global parameter reading - UNCHANGED FROM PREVIOUS)
-            SYNTH_PARAMS.vco1.fineTuneCents = parseFloat(document.getElementById('vco1-fine-tune').value);
-            SYNTH_PARAMS.vco1.wave = document.getElementById('vco1-wave').value;
-            document.getElementById('vco1-fine-val').textContent = SYNTH_PARAMS.vco1.fineTuneCents;
-            
-            SYNTH_PARAMS.vco2.fineTuneCents = parseFloat(document.getElementById('vco2-fine-tune').value);
-            SYNTH_PARAMS.vco2.wave = document.getElementById('vco2-wave').value;
-            document.getElementById('vco2-fine-val').textContent = SYNTH_PARAMS.vco2.fineTuneCents;
-
-            SYNTH_PARAMS.vcf.cutoff = parseFloat(document.getElementById('cutoff-slider').value);
-            SYNTH_PARAMS.vcf.resonance = parseFloat(document.getElementById('resonance-slider').value);
-            document.getElementById('cutoff-val').textContent = SYNTH_PARAMS.vcf.cutoff;
-            document.getElementById('resonance-val').textContent = SYNTH_PARAMS.vcf.resonance.toFixed(1);
-
-            SYNTH_PARAMS.adsr.attack = parseFloat(document.getElementById('attack-slider').value);
-            SYNTH_PARAMS.adsr.decay = parseFloat(document.getElementById('decay-slider').value);
-            SYNTH_PARAMS.adsr.sustain = parseFloat(document.getElementById('sustain-slider').value);
-            SYNTH_PARAMS.adsr.release = parseFloat(document.getElementById('release-slider').value);
-            document.getElementById('attack-val').textContent = SYNTH_PARAMS.adsr.attack;
-            document.getElementById('decay-val').textContent = SYNTH_PARAMS.adsr.decay;
-            document.getElementById('sustain-val').textContent = SYNTH_PARAMS.adsr.sustain;
-            document.getElementById('release-val').textContent = SYNTH_PARAMS.adsr.release;
-
-            SYNTH_PARAMS.global.masterGain = parseFloat(document.getElementById('master-gain').value);
-            document.getElementById('gain-val').textContent = SYNTH_PARAMS.global.masterGain.toFixed(2);
-
-            const now = audioCtx.currentTime;
-            if (masterGainNode) {
-                masterGainNode.gain.setValueAtTime(SYNTH_PARAMS.global.masterGain, now);
-            }
-            if (masterFilterNode) {
-                masterFilterNode.frequency.setValueAtTime(SYNTH_PARAMS.vcf.cutoff, now);
-                masterFilterNode.Q.setValueAtTime(SYNTH_PARAMS.vcf.resonance, now);
-            }
-        }
-        
-        function updateRecordLoopCount() {
-            recordLoopCount = parseInt(document.getElementById('loop-count').value);
-            document.getElementById('loop-count-val').textContent = recordLoopCount;
-            document.getElementById('record-status').textContent = `Record ${recordLoopCount} loops for a perfect track.`;
-        }
-
-        function setVcoRange(vcoNum, octaveOffset) {
-            const vcoKey = 'vco' + vcoNum;
-            SYNTH_PARAMS[vcoKey].rangeOctave = octaveOffset;
-            
-            const sectionId = vcoKey + '-range-buttons';
-            document.querySelectorAll(`#${sectionId} button`).forEach(btn => {
-                btn.classList.toggle('active-range', parseInt(btn.dataset.octave) === octaveOffset);
-            });
-            updateSynthParams();
-        }
-
-        function initializeGlobalNodes() {
-            masterFilterNode = audioCtx.createBiquadFilter();
-            masterFilterNode.type = 'lowpass';
-            masterGainNode = audioCtx.createGain();
-            
-            // --- RECORDER INITIALIZATION: ScriptProcessorNode ---
-            // 4096 buffer size, 2 input, 2 output (Stereo)
-            recorder = audioCtx.createScriptProcessor(4096, 2, 2);
-            recorder.onaudioprocess = processAudio; 
-            
-            // Connect Synth Path: Filter -> Gain (VCA) -> Speakers
-            masterFilterNode.connect(masterGainNode);
-            masterGainNode.connect(audioCtx.destination); 
-            
-            // Connect Synth output to the Recorder input
-            masterGainNode.connect(recorder);
-            // The recorder must connect to the destination to ensure it keeps running
-            recorder.connect(audioCtx.destination); 
-            
-            updateSynthParams();
-            updateRecordLoopCount();
-            
-            // Enable the record button
-            document.getElementById('record-button').disabled = false;
-        }
-
-        function startAudioContext() {
-            if (audioCtx.state === 'suspended') {
-                audioCtx.resume().then(() => {
-                    document.getElementById('status-message').textContent = "Audio Context Running! Play the keyboard or sequencer.";
-                    document.getElementById('audio-init-button').style.display = 'none';
-                });
-            }
-        }
-
-        // --- Note Control Functions ---
-        function startNote(midiNote) {
-            const now = audioCtx.currentTime;
-            if (audioCtx.state !== 'running') { return; }
-            if (activeNotes[midiNote]) { stopNote(midiNote); }
-
-            const vco1 = audioCtx.createOscillator();
-            const vco2 = audioCtx.createOscillator();
-            const noteGain = audioCtx.createGain();
-
-            const vco1Tune = getVcoTuning(1);
-            const vco2Tune = getVcoTuning(2);
-            const adsr = SYNTH_PARAMS.adsr;
-
-            vco1.type = SYNTH_PARAMS.vco1.wave;
-            vco1.frequency.setValueAtTime(midiToFreq(midiNote, vco1Tune.octaveOffset, vco1Tune.fineTuneCents), now);
-            vco2.type = SYNTH_PARAMS.vco2.wave;
-            vco2.frequency.setValueAtTime(midiToFreq(midiNote, vco2Tune.octaveOffset, vco2Tune.fineTuneCents), now);
-            
-            // ADSR Envelope (VCA)
-            noteGain.gain.setValueAtTime(0.0001, now);
-            noteGain.gain.linearRampToValueAtTime(0.5, now + adsr.attack); 
-            // Decay: target Sustain level
-            noteGain.gain.setTargetAtTime(adsr.sustain * 0.5 + 0.0001, now + adsr.attack, adsr.decay / 5); 
-
-            vco1.connect(noteGain);
-            vco2.connect(noteGain);
-            noteGain.connect(masterFilterNode); 
-
-            vco1.start(now);
-            vco2.start(now);
-
-            activeNotes[midiNote] = { vco1, vco2, noteGain };
-        }
-
-        function stopNote(midiNote) {
-            const voice = activeNotes[midiNote];
-            if (!voice) return;
-
-            const now = audioCtx.currentTime;
-            const releaseTime = SYNTH_PARAMS.adsr.release;
-            
-            // RELEASE Phase (VCA)
-            voice.noteGain.gain.cancelScheduledValues(now);
-            voice.noteGain.gain.setValueAtTime(voice.noteGain.gain.value, now);
-            voice.noteGain.gain.exponentialRampToValueAtTime(0.0001, now + releaseTime);
-
-            voice.vco1.stop(now + releaseTime);
-            voice.vco2.stop(now + releaseTime);
-
-            delete activeNotes[midiNote];
-        }
-
-        // --- Keyboard Handler ---
-        function handleKey(midiNote, isPressed) {
-            const keyElement = document.querySelector(`.key[data-midi="${midiNote}"]`);
-            
-            if (isPressed) {
-                keyElement.classList.add('active');
-                startNote(midiNote);
-            } else {
-                keyElement.classList.remove('active');
-                stopNote(midiNote);
-            }
-        }
-
-        // --- Sequencer Logic ---
-        function calculateStepDuration() {
-            stepDurationMs = (60 / bpm) / 4 * 1000; 
-
-            if (isPlaying) {
-                clearInterval(timerID);
-                timerID = setInterval(stepSequencer, stepDurationMs);
-            }
-        }
-        
-        function updateBPM(newBPM) {
-            bpm = parseInt(newBPM);
-            document.getElementById('bpm-display').textContent = bpm;
-            calculateStepDuration();
-        }
-
-        function togglePlayback() {
-             if (audioCtx.state !== 'running') {
-                document.getElementById('status-message').textContent = "Click the 'Start Audio' button first!";
-                return;
-            }
-
-            isPlaying = !isPlaying;
-
-            if (isPlaying) {
-                document.getElementById('play-button').textContent = "⏸️ Stop Sequencer";
-                document.getElementById('play-button').classList.add('playing');
-                currentStep = 0; 
-                timerID = setInterval(stepSequencer, stepDurationMs);
-            } else {
-                document.getElementById('play-button').textContent = "▶️ Play Sequencer";
-                document.getElementById('play-button').classList.remove('playing');
-                clearInterval(timerID);
-                timerID = null;
-                document.querySelectorAll('.step').forEach(el => el.classList.remove('active-col'));
-            }
-        }
-
-        function stepSequencer() {
-            // Visual updates
-            document.querySelectorAll('.step').forEach(el => el.classList.remove('active-col'));
-            for (let row = 0; row < NUM_ROWS; row++) {
-                const elementIndex = row * NUM_STEPS + currentStep;
-                const stepElement = document.getElementById('sequencer-grid').children[elementIndex];
-                if (stepElement) {
-                    stepElement.classList.add('active-col');
-                }
-            }
-
-            // Play notes
-            for (let row = 0; row < NUM_ROWS; row++) {
-                if (sequence[row][currentStep]) {
-                    const noteNumber = C_MAJOR_SCALE[row];
-                    startNote(noteNumber);
-                    
-                    const gateTime = (stepDurationMs / 1000) * 0.8; 
-                    setTimeout(() => stopNote(noteNumber), gateTime * 1000); 
-                }
-            }
-
-            // --- RECORDING AUTO-STOP LOGIC ---
-            // If the step moves from the last step (15) to the first step (0)
-            if (currentStep === 0) {
-                if (isPlaying && recording) {
-                    currentLoop++;
-                    document.getElementById('record-status').textContent = `Recording Loop ${currentLoop} of ${recordLoopCount}`;
-                    
-                    if (currentLoop > recordLoopCount) {
-                        // AUTO-STOP AND FINALIZE
-                        toggleRecording(); // This handles both stopping the recording and the sequencer
-                    }
-                }
-            }
-            
-            currentStep = (currentStep + 1) % NUM_STEPS;
-        }
-
-        // --- Recording Functions ---
-
-        // Audio processing hook (captures samples)
-        function processAudio(e) {
-            if (!recording) return;
-
-            // Capture raw stereo audio buffers
-            audioDataBuffers.push({
-                left: new Float32Array(e.inputBuffer.getChannelData(0)),
-                right: new Float32Array(e.inputBuffer.getChannelData(1))
-            });
-        }
-        
-        // Starts or Stops recording
-        function toggleRecording() {
-            if (recording) {
-                // Stop Recording
-                if (isPlaying) { togglePlayback(); } // Stop sequencer if running
-                finalizeRecording();
-            } else {
-                // Start Recording
-                if (!isPlaying) {
-                     togglePlayback(); // Start the sequencer if it's not running
-                }
-                
-                recording = true;
-                currentLoop = 0;
-                audioDataBuffers = []; // Clear old data
-                
-                document.getElementById('record-button').textContent = 'STOP & DOWNLOAD';
-                document.getElementById('record-status').textContent = `Recording Loop 0 of ${recordLoopCount}`;
-                document.getElementById('record-button').style.backgroundColor = '#2c3e50'; 
-            }
-        }
-        
-        // Handles WAV encoding and file download
-        function finalizeRecording() {
-            recording = false;
-            
-            // Visual feedback update
-            document.getElementById('record-button').textContent = '🔴 Start Recording';
-            document.getElementById('record-button').style.backgroundColor = '#e74c3c';
-            document.getElementById('record-status').textContent = 'Processing and Downloading WAV...';
-            
-            // 1. Merge all captured buffers
-            const buffers = mergeBuffers(audioDataBuffers);
-
-            // 2. Encode the merged data into a WAV Blob
-            const wavBlob = encodeWAV(buffers.left, buffers.right, audioCtx.sampleRate);
-
-            // 3. Create a download link and click it
-            const url = URL.createObjectURL(wavBlob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `synth_loop_${recordLoopCount}x_${Date.now()}.wav`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-
-            // 4. Cleanup
-            URL.revokeObjectURL(url);
-            audioDataBuffers = [];
-            currentLoop = 0;
-            document.getElementById('record-status').textContent = `Download Complete: synth_loop_${recordLoopCount}x.wav`;
-        }
-
-        // --- WAV Encoding Helper Functions ---
-
-        function mergeBuffers(audioDataBuffers) {
-            let recLength = 0;
-            for (let i = 0; i < audioDataBuffers.length; i++) {
-                recLength += audioDataBuffers[i].left.length;
-            }
-            
-            const resultL = new Float32Array(recLength);
-            const resultR = new Float32Array(recLength);
-            let offset = 0;
-
-            for (let i = 0; i < audioDataBuffers.length; i++) {
-                resultL.set(audioDataBuffers[i].left, offset);
-                resultR.set(audioDataBuffers[i].right, offset);
-                offset += audioDataBuffers[i].left.length;
-            }
-
-            return { left: resultL, right: resultR, length: recLength };
-        }
-
-        function writeString(view, offset, string) {
-            for (let i = 0; i < string.length; i++) {
-                view.setUint8(offset + i, string.charCodeAt(i));
-            }
-        }
-
-        function encodeWAV(samplesL, samplesR, sampleRate) {
-            const numChannels = 2;
-            const numSamples = samplesL.length;
-            const buffer = new ArrayBuffer(44 + numSamples * numChannels * 2);
-
-            const view = new DataView(buffer);
-            const writeIndex = (offset, data) => view.setUint16(offset, data, true);
-            const writeLong = (offset, data) => view.setUint32(offset, data, true);
-
-            // RIFF chunk
-            writeString(view, 0, 'RIFF');
-            writeLong(4, 36 + numSamples * numChannels * 2);
-            writeString(view, 8, 'WAVE');
-            
-            // fmt sub-chunk
-            writeString(view, 12, 'fmt ');
-            writeLong(16, 16);
-            writeIndex(20, 1); // Audio format (PCM)
-            writeIndex(22, numChannels);
-            writeLong(24, sampleRate);
-            writeLong(28, sampleRate * numChannels * 2); 
-            writeIndex(32, numChannels * 2); // Block align
-            writeIndex(34, 16); // Bits per sample
-            
-            // data sub-chunk
-            writeString(view, 36, 'data');
-            writeLong(40, numSamples * numChannels * 2);
-
-            // Write the actual audio data (16-bit PCM)
-            let offset = 44;
-            for (let i = 0; i < numSamples; i++, offset += 4) {
-                let sampleL = Math.max(-1, Math.min(1, samplesL[i]));
-                let sampleR = Math.max(-1, Math.min(1, samplesR[i]));
-                
-                // Convert to 16-bit integer and write (Little Endian)
-                view.setInt16(offset, sampleL * 32767, true); 
-                view.setInt16(offset + 2, sampleR * 32767, true); 
-            }
-
-            return new Blob([view], { type: 'audio/wav' });
-        }
+// --- PATTERN CHAINING VARIABLES ---
+let currentPatternIndex = 0;
+// Initialize with one empty pattern (8x16)
+let patternChain = [
+    Array(NUM_ROWS).fill(0).map(() => Array(16).fill(false))
+];
+// 'sequence' is now a reference to the currently active pattern in the chain
+let sequence = patternChain[currentPatternIndex]; 
 
 
-        // --- Grid Generation and Interaction ---
-        function createGrid() {
-            const sequencerGrid = document.getElementById('sequencer-grid');
-            sequencerGrid.innerHTML = '';
+// --- Recording State ---
+let recorder = null;             
+let recording = false;           
+let audioDataBuffers = [];       
+let recordLoopCount = 8;         
+let currentLoop = 0;             
 
-            for (let row = 0; row < NUM_ROWS; row++) {
-                for (let col = 0; col < NUM_STEPS; col++) {
-                    const stepElement = document.createElement('div');
-                    stepElement.className = 'step';
-                    stepElement.dataset.row = row;
-                    stepElement.dataset.col = col;
-                    
-                    stepElement.onclick = () => {
-                        sequence[row][col] = !sequence[row][col];
-                        stepElement.classList.toggle('on', sequence[row][col]);
-                    };
-                    sequencerGrid.appendChild(stepElement);
-                }
-            }
-            calculateStepDuration();
-        }
-        
-        function clearGrid() {
-            sequence = Array(NUM_ROWS).fill(0).map(() => Array(NUM_STEPS).fill(false));
-            document.querySelectorAll('.step').forEach(el => el.classList.remove('on'));
-        }
 
-        // --- Initialization ---
-        document.addEventListener('DOMContentLoaded', () => {
-            initializeGlobalNodes();
-            createGrid();
+// --- Synth Parameters ---
+let SYNTH_PARAMS = {
+    vco1: { wave: 'sawtooth', rangeOctave: 0, fineTuneCents: 0 },
+    vco2: { wave: 'sawtooth', rangeOctave: 0, fineTuneCents: 5 },
+    vcf: { cutoff: 8000, resonance: 0.5 },
+    global: { masterGain: 0.5 },
+    adsr: { attack: 0.01, decay: 0.3, sustain: 0.5, release: 0.5 } 
+};
+
+// --- Utility Functions ---
+function midiToFreq(midiNote, octaveOffset, fineTuneCents) {
+    const adjustedNote = midiNote + (octaveOffset * 12) + (fineTuneCents / 100);
+    return 440 * Math.pow(2, (adjustedNote - 69) / 12);
+}
+
+function getVcoTuning(vcoNum) {
+    const vco = SYNTH_PARAMS['vco' + vcoNum];
+    return {
+        octaveOffset: vco.rangeOctave,
+        fineTuneCents: vco.fineTuneCents
+    };
+}
+
+// --- Parameter Update & Initialization ---
+function updateSynthParams() {
+    SYNTH_PARAMS.vco1.fineTuneCents = parseFloat(document.getElementById('vco1-fine-tune').value);
+    SYNTH_PARAMS.vco1.wave = document.getElementById('vco1-wave').value;
+    document.getElementById('vco1-fine-val').textContent = SYNTH_PARAMS.vco1.fineTuneCents;
+    
+    SYNTH_PARAMS.vco2.fineTuneCents = parseFloat(document.getElementById('vco2-fine-tune').value);
+    SYNTH_PARAMS.vco2.wave = document.getElementById('vco2-wave').value;
+    document.getElementById('vco2-fine-val').textContent = SYNTH_PARAMS.vco2.fineTuneCents;
+
+    SYNTH_PARAMS.vcf.cutoff = parseFloat(document.getElementById('cutoff-slider').value);
+    SYNTH_PARAMS.vcf.resonance = parseFloat(document.getElementById('resonance-slider').value);
+    document.getElementById('cutoff-val').textContent = SYNTH_PARAMS.vcf.cutoff;
+    document.getElementById('resonance-val').textContent = SYNTH_PARAMS.vcf.resonance.toFixed(1);
+
+    SYNTH_PARAMS.adsr.attack = parseFloat(document.getElementById('attack-slider').value);
+    SYNTH_PARAMS.adsr.decay = parseFloat(document.getElementById('decay-slider').value);
+    SYNTH_PARAMS.adsr.sustain = parseFloat(document.getElementById('sustain-slider').value);
+    SYNTH_PARAMS.adsr.release = parseFloat(document.getElementById('release-slider').value);
+    document.getElementById('attack-val').textContent = SYNTH_PARAMS.adsr.attack;
+    document.getElementById('decay-val').textContent = SYNTH_PARAMS.adsr.decay;
+    document.getElementById('sustain-val').textContent = SYNTH_PARAMS.adsr.sustain;
+    document.getElementById('release-val').textContent = SYNTH_PARAMS.adsr.release;
+
+    SYNTH_PARAMS.global.masterGain = parseFloat(document.getElementById('master-gain').value);
+    document.getElementById('gain-val').textContent = SYNTH_PARAMS.global.masterGain.toFixed(2);
+
+    const now = audioCtx.currentTime;
+    if (masterGainNode) {
+        masterGainNode.gain.setValueAtTime(SYNTH_PARAMS.global.masterGain, now);
+    }
+    if (masterFilterNode) {
+        masterFilterNode.frequency.setValueAtTime(SYNTH_PARAMS.vcf.cutoff, now);
+        masterFilterNode.Q.setValueAtTime(SYNTH_PARAMS.vcf.resonance, now);
+    }
+}
+
+function updateRecordLoopCount() {
+    recordLoopCount = parseInt(document.getElementById('loop-count').value);
+    document.getElementById('loop-count-val').textContent = recordLoopCount;
+    document.getElementById('record-status').textContent = `Record ${recordLoopCount} loops for a perfect track.`;
+}
+
+function setVcoRange(vcoNum, octaveOffset) {
+    const vcoKey = 'vco' + vcoNum;
+    SYNTH_PARAMS[vcoKey].rangeOctave = octaveOffset;
+    
+    const sectionId = vcoKey + '-range-buttons';
+    document.querySelectorAll(`#${sectionId} button`).forEach(btn => {
+        btn.classList.toggle('active-range', parseInt(btn.dataset.octave) === octaveOffset);
+    });
+    updateSynthParams();
+}
+
+function initializeGlobalNodes() {
+    masterFilterNode = audioCtx.createBiquadFilter();
+    masterFilterNode.type = 'lowpass';
+    masterGainNode = audioCtx.createGain();
+    
+    // --- RECORDER INITIALIZATION: ScriptProcessorNode ---
+    recorder = audioCtx.createScriptProcessor(4096, 2, 2);
+    recorder.onaudioprocess = processAudio; 
+    
+    // Connect Synth Path
+    masterFilterNode.connect(masterGainNode);
+    masterGainNode.connect(audioCtx.destination); 
+    
+    // Connect Synth output to the Recorder input
+    masterGainNode.connect(recorder);
+    recorder.connect(audioCtx.destination); 
+    
+    updateSynthParams();
+    updateRecordLoopCount();
+    
+    document.getElementById('record-button').disabled = false;
+    updatePatternSelectorUI(); // INITIALIZE PATTERN SELECTOR
+}
+
+function startAudioContext() {
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume().then(() => {
+            document.getElementById('status-message').textContent = "Audio Context Running! Play the keyboard or sequencer.";
+            document.getElementById('audio-init-button').style.display = 'none';
         });
+    }
+}
+
+// --- Note Control Functions ---
+function startNote(midiNote) {
+    const now = audioCtx.currentTime;
+    if (audioCtx.state !== 'running') { return; }
+    if (activeNotes[midiNote]) { stopNote(midiNote); }
+
+    const vco1 = audioCtx.createOscillator();
+    const vco2 = audioCtx.createOscillator();
+    const noteGain = audioCtx.createGain();
+
+    const vco1Tune = getVcoTuning(1);
+    const vco2Tune = getVcoTuning(2);
+    const adsr = SYNTH_PARAMS.adsr;
+
+    vco1.type = SYNTH_PARAMS.vco1.wave;
+    vco1.frequency.setValueAtTime(midiToFreq(midiNote, vco1Tune.octaveOffset, vco1Tune.fineTuneCents), now);
+    vco2.type = SYNTH_PARAMS.vco2.wave;
+    vco2.frequency.setValueAtTime(midiToFreq(midiNote, vco2Tune.octaveOffset, vco2Tune.fineTuneCents), now);
+    
+    // ADSR Envelope (VCA)
+    noteGain.gain.setValueAtTime(0.0001, now);
+    noteGain.gain.linearRampToValueAtTime(0.5, now + adsr.attack); 
+    noteGain.gain.setTargetAtTime(adsr.sustain * 0.5 + 0.0001, now + adsr.attack, adsr.decay / 5); 
+
+    vco1.connect(noteGain);
+    vco2.connect(noteGain);
+    noteGain.connect(masterFilterNode); 
+
+    vco1.start(now);
+    vco2.start(now);
+
+    activeNotes[midiNote] = { vco1, vco2, noteGain };
+}
+
+function stopNote(midiNote) {
+    const voice = activeNotes[midiNote];
+    if (!voice) return;
+
+    const now = audioCtx.currentTime;
+    const releaseTime = SYNTH_PARAMS.adsr.release;
+    
+    // RELEASE Phase (VCA)
+    voice.noteGain.gain.cancelScheduledValues(now);
+    voice.noteGain.gain.setValueAtTime(voice.noteGain.gain.value, now);
+    voice.noteGain.gain.exponentialRampToValueAtTime(0.0001, now + releaseTime);
+
+    voice.vco1.stop(now + releaseTime);
+    voice.vco2.stop(now + releaseTime);
+
+    delete activeNotes[midiNote];
+}
+
+// --- Keyboard Handler ---
+function handleKey(midiNote, isPressed) {
+    const keyElement = document.querySelector(`.key[data-midi="${midiNote}"]`);
+    
+    if (isPressed) {
+        keyElement.classList.add('active');
+        startNote(midiNote);
+    } else {
+        keyElement.classList.remove('active');
+        stopNote(midiNote);
+    }
+}
+
+// --- Sequencer Logic ---
+function calculateStepDuration() {
+    // 60 seconds / BPM = time per beat. Divide by 4 for 16th notes. Multiply by 1000 for ms.
+    stepDurationMs = (60 / bpm) / 4 * 1000; 
+
+    if (isPlaying) {
+        clearInterval(timerID);
+        timerID = setInterval(stepSequencer, stepDurationMs);
+    }
+}
+
+function updateBPM(newBPM) {
+    bpm = parseInt(newBPM);
+    document.getElementById('bpm-display').textContent = bpm;
+    calculateStepDuration();
+}
+
+function togglePlayback() {
+     if (audioCtx.state !== 'running') {
+        document.getElementById('status-message').textContent = "Click the 'Start Audio' button first!";
+        return;
+    }
+
+    isPlaying = !isPlaying;
+
+    if (isPlaying) {
+        document.getElementById('play-button').textContent = "⏸️ Stop Sequencer";
+        document.getElementById('play-button').classList.add('playing');
+        currentStep = 0; 
+        currentPatternIndex = 0; // Always start from the first pattern
+        sequence = patternChain[currentPatternIndex];
+        document.getElementById('pattern-selector').value = currentPatternIndex; // Update UI
+        timerID = setInterval(stepSequencer, stepDurationMs);
+    } else {
+        document.getElementById('play-button').textContent = "▶️ Play Sequencer";
+        document.getElementById('play-button').classList.remove('playing');
+        clearInterval(timerID);
+        timerID = null;
+        document.querySelectorAll('.step').forEach(el => el.classList.remove('active-col'));
+    }
+}
+
+function stepSequencer() {
+    // 1. VISUAL UPDATE
+    document.querySelectorAll('.step').forEach(el => el.classList.remove('active-col'));
+    for (let row = 0; row < NUM_ROWS; row++) {
+        const elementIndex = row * 16 + currentStep; // Use 16 as base width for grid element indexing
+        const stepElement = document.getElementById('sequencer-grid').children[elementIndex];
+        if (stepElement) {
+            stepElement.classList.add('active-col');
+        }
+    }
+
+    // 2. PLAY NOTES from the current 'sequence' (pattern)
+    for (let row = 0; row < NUM_ROWS; row++) {
+        // Only check up to the current NUM_STEPS (variable length)
+        if (currentStep < NUM_STEPS && sequence[row][currentStep]) { 
+            const noteNumber = C_MAJOR_SCALE[row];
+            startNote(noteNumber);
+            
+            const gateTime = (stepDurationMs / 1000) * 0.8; 
+            setTimeout(() => stopNote(noteNumber), gateTime * 1000); 
+        }
+    }
+
+    // 3. PATTERN ADVANCE LOGIC
+    if (currentStep === NUM_STEPS - 1) { 
+        // We are on the last step of the current pattern
+        
+        // Schedule the pattern change just before the next step fires
+        setTimeout(() => {
+            if (isPlaying) {
+                // Advance pattern index and wrap around
+                currentPatternIndex = (currentPatternIndex + 1) % patternChain.length;
+                
+                // Update the active 'sequence' reference
+                sequence = patternChain[currentPatternIndex]; 
+                
+                // Update the selector UI
+                document.getElementById('pattern-selector').value = currentPatternIndex;
+                
+                // Reset step to 0 for the new pattern
+                currentStep = -1; // Set to -1 so that the final increment makes it 0
+                
+                // Check if we looped back to pattern 0 for recording
+                if (currentPatternIndex === 0 && recording) {
+                     currentLoop++;
+                     document.getElementById('record-status').textContent = `Recording Loop ${currentLoop} of ${recordLoopCount}`;
+                     
+                     if (currentLoop > recordLoopCount) {
+                         // Stop recording and sequencer
+                         toggleRecording(); 
+                     }
+                }
+            }
+        }, stepDurationMs * 0.9); 
+    }
+    
+    // 4. STEP ADVANCE
+    currentStep = (currentStep + 1) % 16; // Use 16 for visual grid stepping
+}
+
+// --- Pattern Management Functions (NEW) ---
+
+function createEmptyPattern() {
+    // Creates a new 8x16 empty grid (fixed at 16 length for storage)
+    return Array(NUM_ROWS).fill(0).map(() => Array(16).fill(false));
+}
+
+function updatePatternSelectorUI() {
+    const selector = document.getElementById('pattern-selector');
+    selector.innerHTML = ''; 
+    
+    for (let i = 0; i < patternChain.length; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.textContent = `Pattern ${i + 1}`;
+        selector.appendChild(option);
+    }
+    
+    selector.value = currentPatternIndex;
+    document.getElementById('remove-pattern-button').disabled = patternChain.length <= 1;
+}
+
+function selectPattern(index) {
+    currentPatternIndex = parseInt(index);
+    sequence = patternChain[currentPatternIndex]; // Point 'sequence' to the new pattern data
+    renderGridFromCurrentSequence(); // Refresh the grid visuals
+}
+
+function addPattern() {
+    if (patternChain.length >= 8) { // Set a reasonable chain limit
+        alert("Maximum 8 patterns supported in the chain.");
+        return;
+    }
+    patternChain.push(createEmptyPattern());
+    selectPattern(patternChain.length - 1);
+    updatePatternSelectorUI();
+}
+
+function removePattern() {
+    if (patternChain.length <= 1) return;
+    
+    patternChain.splice(currentPatternIndex, 1); 
+    
+    // Adjust index if we removed the last pattern
+    if (currentPatternIndex >= patternChain.length) {
+        currentPatternIndex = patternChain.length - 1;
+    }
+    
+    selectPattern(currentPatternIndex);
+    updatePatternSelectorUI();
+}
+
+function updateStepCount(newCount) {
+    NUM_STEPS = parseInt(newCount);
+    document.getElementById('step-count-val').textContent = NUM_STEPS;
+    // We only need to update the visual appearance of the grid to show which steps are active/highlighted
+    renderGridFromCurrentSequence(); 
+    calculateStepDuration();
+}
+
+
+// --- Recording Functions ---
+
+// ... (Recording functions remain the same as before) ...
+
+function processAudio(e) {
+    if (!recording) return;
+    audioDataBuffers.push({
+        left: new Float32Array(e.inputBuffer.getChannelData(0)),
+        right: new Float32Array(e.inputBuffer.getChannelData(1))
+    });
+}
+
+function toggleRecording() {
+    if (recording) {
+        if (isPlaying) { togglePlayback(); } 
+        finalizeRecording();
+    } else {
+        if (!isPlaying) {
+             togglePlayback(); 
+        }
+        
+        recording = true;
+        currentLoop = 0;
+        audioDataBuffers = []; 
+        
+        document.getElementById('record-button').textContent = 'STOP & DOWNLOAD';
+        document.getElementById('record-status').textContent = `Recording Loop 0 of ${recordLoopCount}`;
+        document.getElementById('record-button').style.backgroundColor = '#2c3e50'; 
+    }
+}
+
+function finalizeRecording() {
+    recording = false;
+    
+    document.getElementById('record-button').textContent = '🔴 Start Recording';
+    document.getElementById('record-button').style.backgroundColor = '#e74c3c';
+    document.getElementById('record-status').textContent = 'Processing and Downloading WAV...';
+    
+    const buffers = mergeBuffers(audioDataBuffers);
+    const wavBlob = encodeWAV(buffers.left, buffers.right, audioCtx.sampleRate);
+
+    const url = URL.createObjectURL(wavBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `synth_loop_${Date.now()}.wav`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    URL.revokeObjectURL(url);
+    audioDataBuffers = [];
+    currentLoop = 0;
+    document.getElementById('record-status').textContent = `Download Complete: synth_loop.wav`;
+}
+
+
+// --- WAV Encoding Helper Functions (UNCHANGED) ---
+
+function mergeBuffers(audioDataBuffers) {
+    let recLength = 0;
+    for (let i = 0; i < audioDataBuffers.length; i++) {
+        recLength += audioDataBuffers[i].left.length;
+    }
+    
+    const resultL = new Float32Array(recLength);
+    const resultR = new Float32Array(recLength);
+    let offset = 0;
+
+    for (let i = 0; i < audioDataBuffers.length; i++) {
+        resultL.set(audioDataBuffers[i].left, offset);
+        resultR.set(audioDataBuffers[i].right, offset);
+        offset += audioDataBuffers[i].left.length;
+    }
+
+    return { left: resultL, right: resultR, length: recLength };
+}
+
+function writeString(view, offset, string) {
+    for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+    }
+}
+
+function encodeWAV(samplesL, samplesR, sampleRate) {
+    const numChannels = 2;
+    const numSamples = samplesL.length;
+    const buffer = new ArrayBuffer(44 + numSamples * numChannels * 2);
+
+    const view = new DataView(buffer);
+    const writeIndex = (offset, data) => view.setUint16(offset, data, true);
+    const writeLong = (offset, data) => view.setUint32(offset, data, true);
+
+    writeString(view, 0, 'RIFF');
+    writeLong(4, 36 + numSamples * numChannels * 2);
+    writeString(view, 8, 'WAVE');
+    writeString(view, 12, 'fmt ');
+    writeLong(16, 16);
+    writeIndex(20, 1);
+    writeIndex(22, numChannels);
+    writeLong(24, sampleRate);
+    writeLong(28, sampleRate * numChannels * 2); 
+    writeIndex(32, numChannels * 2);
+    writeIndex(34, 16);
+    writeString(view, 36, 'data');
+    writeLong(40, numSamples * numChannels * 2);
+
+    let offset = 44;
+    for (let i = 0; i < numSamples; i++, offset += 4) {
+        let sampleL = Math.max(-1, Math.min(1, samplesL[i]));
+        let sampleR = Math.max(-1, Math.min(1, samplesR[i]));
+        
+        view.setInt16(offset, sampleL * 32767, true); 
+        view.setInt16(offset + 2, sampleR * 32767, true); 
+    }
+
+    return new Blob([view], { type: 'audio/wav' });
+}
+
+
+// --- Grid Generation and Interaction ---
+function createGrid() {
+    const sequencerGrid = document.getElementById('sequencer-grid');
+    sequencerGrid.innerHTML = '';
+    
+    // The grid is always visually 8 rows by 16 columns for consistent size
+    // and to match the 16-step storage length.
+    sequencerGrid.style.gridTemplateColumns = `repeat(16, 1fr)`;
+
+    for (let row = 0; row < NUM_ROWS; row++) {
+        for (let col = 0; col < 16; col++) {
+            const stepElement = document.createElement('div');
+            stepElement.className = 'step';
+            stepElement.dataset.row = row;
+            stepElement.dataset.col = col;
+            
+            stepElement.onclick = () => {
+                // Clicking saves data to the current pattern's 16-step storage
+                patternChain[currentPatternIndex][row][col] = !patternChain[currentPatternIndex][row][col];
+                stepElement.classList.toggle('on', patternChain[currentPatternIndex][row][col]);
+            };
+            sequencerGrid.appendChild(stepElement);
+        }
+    }
+    renderGridFromCurrentSequence();
+    calculateStepDuration();
+}
+
+function renderGridFromCurrentSequence() {
+    const gridElements = document.getElementById('sequencer-grid').children;
+    for (let row = 0; row < NUM_ROWS; row++) {
+        for (let col = 0; col < 16; col++) {
+            const index = row * 16 + col;
+            const stepElement = gridElements[index];
+            
+            // Highlight steps active in the current pattern
+            stepElement.classList.toggle('on', sequence[row][col]);
+            
+            // Visually deemphasize steps outside the current NUM_STEPS length
+            stepElement.style.opacity = (col < NUM_STEPS) ? 1 : 0.3;
+            stepElement.style.pointerEvents = (col < NUM_STEPS) ? 'auto' : 'none';
+        }
+    }
+}
+
+function clearGrid() {
+    // Clear only the currently active pattern
+    patternChain[currentPatternIndex] = createEmptyPattern();
+    sequence = patternChain[currentPatternIndex];
+    renderGridFromCurrentSequence();
+}
+
+// --- Initialization ---
+document.addEventListener('DOMContentLoaded', () => {
+    initializeGlobalNodes();
+    createGrid();
+});
     </script>
 </body>
 </html>
