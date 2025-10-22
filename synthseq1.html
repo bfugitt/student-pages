@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Web Audio Synth Sequencer (32 Steps)</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            text-align: center;
+            padding: 20px;
+            background-color: #f4f4f9;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        /* Synth and Global Controls Layout */
+        #synth-controls, .controls {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+        }
+        #synth-controls {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 15px;
+            align-items: center;
+        }
+        .control-group {
+            text-align: left;
+        }
+        .control-group label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #555;
+            font-size: 12px;
+        }
+        input[type="range"] {
+            width: 100%;
+        }
+        /* Sequencer Controls */
+        .controls {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+        }
+        .tempo-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+        }
+        #play-button { background-color: #4CAF50; color: white; }
+        #play-button.playing { background-color: #f39c12; }
+        #clear-button { background-color: #333; color: white; }
+        #audio-init-button { background-color: #64b5f6; color: white; }
+
+        /* Grid CSS */
+        .grid-wrapper {
+            display: flex;
+            margin-top: 15px;
+            border: 1px solid #ccc;
+        }
+        .note-labels {
+            width: 80px;
+            flex-shrink: 0;
+            background-color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+        }
+        .note-label {
+            height: 18px;
+            line-height: 18px;
+            text-align: right;
+            padding-right: 5px;
+            font-size: 10px;
+            font-weight: bold;
+            border-bottom: 1px solid #ddd;
+        }
+        .note-label.sharp { background-color: #e0e0e0; color: #333; }
+        .grid-container {
+            flex-grow: 1;
+            display: grid;
+            grid-template-columns: repeat(32, 1fr);
+            border-left: 1px solid #ccc;
+        }
+        .step {
+            height: 18px;
+            border: 1px solid #eee;
+            cursor: pointer;
+        }
+        .step:hover { background-color: #f0f0f0; }
+        .active-col {
+            background-color: #64b5f6 !important; /* Blue for the current step column */
+            border-color: #1976d2;
+        }
+        .on { background-color: #4CAF50; } /* Green for selected notes */
+        .on.active-col { background-color: #ff9800 !important; } /* Orange when selected and active */
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Web Audio Synth Sequencer (32 Steps)</h2>
+        <p id="status-message" style="color: blue; font-weight: bold; margin-bottom: 10px;">
+            Click 'Start Audio' before pressing Play.
+        </p>
+        
+        <button id="audio-init-button" onclick="startAudioContext()">
+            1. Click to Start Audio
+        </button>
+
+        <div id="synth-controls">
+            <div class="control-group">
+                <label for="wave-select">VCO Waveform</label>
+                <select id="wave-select" onchange="updateSynthParams()">
+                    <option value="sawtooth">Sawtooth</option>
+                    <option value="square">Square</option>
+                    <option value="sine">Sine</option>
+                    <option value="triangle">Triangle</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label for="master-gain">Volume: <span id="gain-val">0.5</span></label>
+                <input type="range" id="master-gain" min="0" max="1" step="0.05" value="0.5" oninput="updateMasterGain(this.value)">
+            </div>
+            
+            <div class="control-group">
+                <label for="attack-slider">A (s): <span id="attack-val">0.01</span></label>
+                <input type="range" id="attack-slider" min="0.005" max="2" step="0.005" value="0.01" oninput="updateSynthParams()">
+            </div>
+            <div class="control-group">
+                <label for="decay-slider">D (s): <span id="decay-val">0.3</span></label>
+                <input type="range" id="decay-slider" min="0.05" max="3" step="0.05" value="0.3" oninput="updateSynthParams()">
+            </div>
+            <div class="control-group">
+                <label for="sustain-slider">S (Lvl): <span id="sustain-val">0.5</span></label>
+                <input type="range" id="sustain-slider" min="0" max="1" step="0.05" value="0.5" oninput="updateSynthParams()">
+            </div>
+            <div class="control-group">
+                <label for="release-slider">R (s): <span id="release-val">0.5</span></label>
+                <input type="range" id="release-slider" min="0.05" max="3" step="0.05" value="0.5" oninput="updateSynthParams()">
+            </div>
+        </div>
+        
+        <div class="controls">
+            <button id="play-button" onclick="togglePlayback()">▶️ Play</button>
+            
+            <div class="tempo-control">
+                <label for="bpm-slider">Tempo (BPM):</label>
+                <input type="range" id="bpm-slider" min="60" max="240" value="120" oninput="updateBPM(this.value)">
+                <span id="bpm-display">120</span>
+            </div>
+            
+            <button id="clear-button" onclick="clearGrid()">🗑️ Clear Grid</button>
+        </div>
+
+        <div class="grid-wrapper">
+            <div class="note-labels" id="note-labels"></div>
+            <div class="grid-container" id="sequencer-grid"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- Configuration ---
+        const CHROMATIC_NOTES = [
+            { num: 73, name: "C#5", isSharp: true }, { num: 72, name: "C5", isSharp: false }, 
+            { num: 71, name: "B4", isSharp: false }, { num: 70, name: "A#4", isSharp: true }, 
+            { num: 69, name: "A4", isSharp: false }, { num: 68, name: "G#4", isSharp: true }, 
+            { num: 67, name: "G4", isSharp: false }, { num: 66, name: "F#4", isSharp: true }, 
+            { num: 65, name: "F4", isSharp: false }, { num: 64, name: "E4", isSharp: false }, 
+            { num: 63, name: "D#4", isSharp: true }, { num: 62, name: "D4", isSharp: false }, 
+            { num: 61, name: "C#4", isSharp: true }, { num: 60, name: "C4", isSharp: false }, 
+            { num: 59, name: "B3", isSharp: false }, { num: 58, name: "A#3", isSharp: true }, 
+            { num: 57, name: "A3", isSharp: false }, { num: 56, name: "G#3", isSharp: true }, 
+            { num: 55, name: "G3", isSharp: false }, { num: 54, name: "F#3", isSharp: true }, 
+            { num: 53, name: "F3", isSharp: false }, { num: 52, name: "E3", isSharp: false }, 
+            { num: 51, name: "D#3", isSharp: true }, { num: 50, name: "D3", isSharp: false }, 
+            { num: 49, name: "C#3", isSharp: true }, { num: 48, name: "C3", isSharp: false }
+        ];
+
+        const NUM_STEPS = 32;
+        const NUM_ROWS = CHROMATIC_NOTES.length;
+        
+        // --- State Variables ---
+        let isPlaying = false;
+        let currentStep = 0;
+        let bpm = 120;
+        let timerID = null;
+        let stepDurationMs = 0; 
+        
+        // 2D Array to store the grid state (true/false)
+        let sequence = Array(NUM_ROWS).fill(0).map(() => Array(NUM_STEPS).fill(false));
+
+        // --- DOM Elements ---
+        const statusMessage = document.getElementById('status-message');
+        const sequencerGrid = document.getElementById('sequencer-grid');
+        const noteLabelsDiv = document.getElementById('note-labels');
+        const playButton = document.getElementById('play-button');
+        const bpmDisplay = document.getElementById('bpm-display');
+        const audioInitButton = document.getElementById('audio-init-button');
+
+        // --- Web Audio Setup ---
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+        
+        // Map to keep track of active notes (for sustained/release notes)
+        const activeNotes = {}; 
+        let SYNTH_PARAMS = {}; // Will be populated by updateSynthParams
+
+        // Master Gain Node (VCA)
+        const masterGainNode = audioCtx.createGain();
+        masterGainNode.connect(audioCtx.destination);
+
+
+        // --- Audio Context Management ---
+        function startAudioContext() {
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume().then(() => {
+                    statusMessage.textContent = "Audio Context Running! Press Play.";
+                    audioInitButton.style.display = 'none';
+                }).catch(e => {
+                    statusMessage.textContent = `Error starting audio: ${e.message}`;
+                    statusMessage.style.color = 'red';
+                });
+            } else {
+                 statusMessage.textContent = "Audio Context Running! Press Play.";
+                 audioInitButton.style.display = 'none';
+            }
+        }
+        
+        // --- Synth Parameter Functions (ADSR, Waveform) ---
+        function updateSynthParams() {
+            // Update ADSR values from sliders
+            SYNTH_PARAMS.attack = parseFloat(document.getElementById('attack-slider').value);
+            SYNTH_PARAMS.decay = parseFloat(document.getElementById('decay-slider').value);
+            SYNTH_PARAMS.sustain = parseFloat(document.getElementById('sustain-slider').value);
+            SYNTH_PARAMS.release = parseFloat(document.getElementById('release-slider').value);
+            
+            // Update Waveform
+            SYNTH_PARAMS.wave = document.getElementById('wave-select').value;
+            SYNTH_PARAMS.masterGain = parseFloat(document.getElementById('master-gain').value);
+
+            // Update display values
+            document.getElementById('attack-val').textContent = SYNTH_PARAMS.attack;
+            document.getElementById('decay-val').textContent = SYNTH_PARAMS.decay;
+            document.getElementById('sustain-val').textContent = SYNTH_PARAMS.sustain;
+            document.getElementById('release-val').textContent = SYNTH_PARAMS.release;
+        }
+
+        function updateMasterGain(value) {
+            SYNTH_PARAMS.masterGain = parseFloat(value);
+            document.getElementById('gain-val').textContent = SYNTH_PARAMS.masterGain;
+            masterGainNode.gain.setValueAtTime(SYNTH_PARAMS.masterGain, audioCtx.currentTime);
+        }
+
+        /**
+         * Converts MIDI note number to frequency (Hz).
+         */
+        function midiToFreq(midiNote) {
+            return 440 * Math.pow(2, (midiNote - 69) / 12);
+        }
+
+        /**
+         * Starts a new synth note with ADSR (called by the sequencer).
+         */
+        function playSynthNote(midiNote) {
+            const now = audioCtx.currentTime;
+            const frequency = midiToFreq(midiNote);
+            const maxAmplitude = 1; // Sequencer notes are always full velocity for simplicity
+
+            // 1. VCO: Oscillator Node
+            const oscillator = audioCtx.createOscillator();
+            oscillator.type = SYNTH_PARAMS.wave;
+            oscillator.frequency.setValueAtTime(frequency, now);
+
+            // 2. VCA: Gain Node for Envelope
+            const envelopeGain = audioCtx.createGain();
+            envelopeGain.gain.setValueAtTime(0.0001, now); 
+
+            // --- Routing ---
+            oscillator.connect(envelopeGain).connect(masterGainNode);
+
+            // --- ADSR Attack Phase ---
+            envelopeGain.gain.linearRampToValueAtTime(maxAmplitude, now + SYNTH_PARAMS.attack);
+
+            // --- ADSR Decay Phase (Drop to Sustain) ---
+            // Set the target value as the Sustain Level
+            envelopeGain.gain.setTargetAtTime(SYNTH_PARAMS.sustain * maxAmplitude + 0.0001, now + SYNTH_PARAMS.attack, SYNTH_PARAMS.decay / 5);
+            
+            oscillator.start(now);
+            
+            // The note must be explicitly released after the step duration
+            scheduleNoteRelease(midiNote, oscillator, envelopeGain, now + (stepDurationMs / 1000) * 0.95); // Release slightly before the next step
+        }
+        
+        /**
+         * Schedules the release phase of the ADSR envelope.
+         */
+        function scheduleNoteRelease(midiNote, oscillator, envelopeGain, releaseTime) {
+            const now = audioCtx.currentTime;
+            
+            // Clear any pending automation on the note's gain (VCA)
+            envelopeGain.gain.cancelScheduledValues(releaseTime);
+            
+            // Set the current volume as the start of the release
+            envelopeGain.gain.setValueAtTime(envelopeGain.gain.value, releaseTime);
+            
+            // Start the exponential ramp down to silence
+            envelopeGain.gain.exponentialRampToValueAtTime(0.0001, releaseTime + SYNTH_PARAMS.release);
+
+            // Stop the oscillator after the release is complete
+            oscillator.stop(releaseTime + SYNTH_PARAMS.release);
+        }
+        
+        // --- Sequencer Core Logic ---
+        
+        function calculateStepDuration() {
+            // Step is a 16th note. There are 4 steps per beat.
+            stepDurationMs = (60 / bpm) / 4 * 1000; 
+
+            if (isPlaying) { // Restart timer if playing
+                clearInterval(timerID);
+                timerID = setInterval(stepSequencer, stepDurationMs);
+            }
+        }
+        
+        function updateBPM(newBPM) {
+            bpm = parseInt(newBPM);
+            bpmDisplay.textContent = bpm;
+            calculateStepDuration();
+        }
+
+        function togglePlayback() {
+            // CRITICAL: Ensure audio context is running
+            if (audioCtx.state !== 'running') {
+                statusMessage.textContent = "Please click 'Start Audio' first!";
+                return;
+            }
+
+            isPlaying = !isPlaying;
+
+            if (isPlaying) {
+                playButton.textContent = "⏸️ Stop";
+                playButton.classList.add('playing');
+                currentStep = 0; // Start from the beginning
+                timerID = setInterval(stepSequencer, stepDurationMs);
+            } else {
+                playButton.textContent = "▶️ Play";
+                playButton.classList.remove('playing');
+                clearInterval(timerID);
+                timerID = null;
+                
+                // Clear the active column highlight
+                document.querySelectorAll('.step').forEach(el => el.classList.remove('active-col'));
+            }
+        }
+
+        function stepSequencer() {
+            const now = audioCtx.currentTime;
+
+            // 1. Highlight the current column
+            document.querySelectorAll('.step').forEach(el => el.classList.remove('active-col'));
+            
+            for (let row = 0; row < NUM_ROWS; row++) {
+                const elementIndex = row * NUM_STEPS + currentStep;
+                const stepElement = sequencerGrid.children[elementIndex];
+                if (stepElement) {
+                    stepElement.classList.add('active-col');
+                }
+            }
+
+            // 2. Process the notes in the current step (column)
+            for (let row = 0; row < NUM_ROWS; row++) {
+                if (sequence[row][currentStep]) {
+                    const noteNumber = CHROMATIC_NOTES[row].num;
+                    
+                    // Call the Web Audio synth function instead of sending MIDI
+                    playSynthNote(noteNumber);
+                }
+            }
+
+            // 3. Advance to the next step
+            currentStep = (currentStep + 1) % NUM_STEPS;
+        }
+
+        // --- Grid Generation and Interaction ---
+        function createGrid() {
+            sequencerGrid.innerHTML = '';
+            noteLabelsDiv.innerHTML = '';
+
+            // 1. Create Note Labels
+            CHROMATIC_NOTES.forEach(note => {
+                const label = document.createElement('div');
+                label.className = `note-label ${note.isSharp ? 'sharp' : ''}`;
+                label.textContent = note.name;
+                noteLabelsDiv.appendChild(label);
+            });
+
+            // 2. Create Grid Steps
+            for (let row = 0; row < NUM_ROWS; row++) {
+                for (let col = 0; col < NUM_STEPS; col++) {
+                    const stepElement = document.createElement('div');
+                    stepElement.className = 'step';
+                    stepElement.dataset.row = row;
+                    stepElement.dataset.col = col;
+                    
+                    // Visual separators for the measures/beats
+                    if (col % 16 === 0) { // Measure (Bar) 1 and 2 start
+                        stepElement.style.borderLeft = '2px solid #333';
+                    } else if (col % 4 === 0) { // Strong Beat
+                        stepElement.style.borderLeft = '1px solid #777';
+                    }
+
+                    // Alternate row background for black keys
+                    if (CHROMATIC_NOTES[row].isSharp) {
+                        stepElement.style.backgroundColor = '#f8f8f8'; 
+                    }
+
+                    stepElement.onclick = () => toggleStep(row, col, stepElement);
+                    sequencerGrid.appendChild(stepElement);
+                }
+            }
+            calculateStepDuration();
+        }
+
+        function toggleStep(row, col, element) {
+            sequence[row][col] = !sequence[row][col];
+            element.classList.toggle('on', sequence[row][col]);
+        }
+        
+        function clearGrid() {
+            sequence = Array(NUM_ROWS).fill(0).map(() => Array(NUM_STEPS).fill(false));
+            document.querySelectorAll('.step').forEach(el => el.classList.remove('on'));
+        }
+
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            updateSynthParams(); // Load initial synth values
+            createGrid();        // Build the sequencer grid
+        });
+    </script>
+</body>
+</html>
