@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>VCO + VCF + Oscilloscope Test</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            text-align: center;
+            padding: 20px;
+            background-color: #f4f4f9;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        h2 { color: #333; margin-bottom: 20px; }
+        
+        #oscilloscope-canvas {
+            background-color: #000;
+            border: 2px solid #555;
+            margin-bottom: 20px;
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            padding: 15px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .control-group { text-align: left; }
+        .control-group label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #555;
+            font-size: 14px;
+        }
+        input[type="range"] { width: 100%; }
+        button {
+            padding: 12px 25px;
+            font-size: 18px;
+            cursor: pointer;
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 6px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>VCO/VCF Simulation and Oscilloscope</h2>
+        <canvas id="oscilloscope-canvas" width="600" height="200"></canvas>
+        <p id="status-message" style="color: blue; font-style: italic;">
+            Click to start audio and hold the note button to play.
+        </p>
+
+        <div class="controls-grid">
+            <div class="control-group">
+                <label for="pitch-slider">VCO Pitch (C3 to C5): <span id="pitch-val">60</span></label>
+                <input type="range" id="pitch-slider" min="48" max="72" step="1" value="60" oninput="updatePitch(this.value)">
+            </div>
+            <div class="control-group">
+                <label for="wave-select">VCO Waveform</label>
+                <select id="wave-select" onchange="updateSynthParams()">
+                    <option value="sawtooth">Sawtooth</option>
+                    <option value="square">Square</option>
+                    <option value="sine">Sine</option>
+                    <option value="triangle">Triangle</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label for="cutoff-slider">VCF Cutoff (Hz): <span id="cutoff-val">500</span></label>
+                <input type="range" id="cutoff-slider" min="50" max="10000" step="10" value="500" oninput="updateFilterCutoff(this.value)">
+            </div>
+            <div class="control-group">
+                <label for="resonance-slider">VCF Resonance (Q): <span id="resonance-val">1.0</span></label>
+                <input type="range" id="resonance-slider" min="0.1" max="15" step="0.1" value="1.0" oninput="updateFilterResonance(this.value)">
+            </div>
+        </div>
+
+        <button 
+            id="play-button"
+            onmousedown="handleNote(true)"
+            onmouseup="handleNote(false)"
+            ontouchstart="handleNote(true)"
+            ontouchend="handleNote(false)"
+        >
+            Hold to Play Note
+        </button>
+    </div>
+
+    <script>
+        // --- Global Web Audio Context & Nodes ---
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+        
+        let oscillator = null; // The VCO
+        let filterNode = null; // The VCF
+        let gainNode = null;   // The VCA
+        let analyserNode = null; // The Oscilloscope's listener
+
+        // --- Oscilloscope Canvas Setup ---
+        const canvas = document.getElementById('oscilloscope-canvas');
+        const canvasCtx = canvas.getContext('2d');
+        const WIDTH = canvas.width;
+        const HEIGHT = canvas.height;
+        
+        let animationFrameId;
+
+        // --- Synth Parameters (Simple AD for now) ---
+        let SYNTH_PARAMS = {
+            wave: 'sawtooth',
+            midiNote: 60, // C4
+            cutoff: 500,
+            resonance: 1.0,
+            attack: 0.05,
+            release: 0.5
+        };
+
+        // --- Utility Functions ---
+        function midiToFreq(midiNote) {
+            return 440 * Math.pow(2, (midiNote - 69) / 12);
+        }
+
+        // --- Oscilloscope Drawing Function ---
+        function drawOscilloscope() {
+            // Get data from the AnalyserNode
+            analyserNode.getByteTimeDomainData(analyserNode.dataArray);
+            
+            // Start drawing
+            canvasCtx.fillStyle = 'rgb(0, 0, 0)'; // Black background
+            canvasCtx.fillRect(0, 0, WIDTH, HEIGHT);
+            canvasCtx.lineWidth = 2;
+            canvasCtx.strokeStyle = 'rgb(50, 255, 50)'; // Green waveform
+            canvasCtx.beginPath();
+
+            const bufferLength = analyserNode.dataArray.length;
+            const sliceWidth = WIDTH * 1.0 / bufferLength;
+            let x = 0;
+
+            for(let i = 0; i < bufferLength; i++) {
+                // Data is 0-255, centered around 128 (center of the canvas)
+                const v = analyserNode.dataArray[i] / 128.0; 
+                const y = v * HEIGHT/2;
+
+                if(i === 0) {
+                    canvasCtx.moveTo(x, y);
+                } else {
+                    canvasCtx.lineTo(x, y);
+                }
+                x += sliceWidth;
+            }
+
+            canvasCtx.lineTo(WIDTH, HEIGHT/2);
+            canvasCtx.stroke();
+
+            // Loop the function for animation
+            animationFrameId = requestAnimationFrame(drawOscilloscope);
+        }
+
+        // --- Audio Control Functions ---
+        function startAudioContext() {
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume().then(() => {
+                    document.getElementById('status-message').textContent = "Audio Context Running! Hold button to play.";
+                });
+            }
+        }
+
+        function updateSynthParams() {
+            // Update Waveform
+            SYNTH_PARAMS.wave = document.getElementById('wave-select').value;
+            // Update Filter Nodes if they exist
+            if (filterNode) {
+                filterNode.type = 'lowpass'; // Set a standard filter type
+            }
+        }
+
+        function updatePitch(midiNote) {
+            SYNTH_PARAMS.midiNote = parseInt(midiNote);
+            document.getElementById('pitch-val').textContent = SYNTH_PARAMS.midiNote;
+            if (oscillator) {
+                oscillator.frequency.setValueAtTime(midiToFreq(SYNTH_PARAMS.midiNote), audioCtx.currentTime);
+            }
+        }
+
+        function updateFilterCutoff(value) {
+            SYNTH_PARAMS.cutoff = parseFloat(value);
+            document.getElementById('cutoff-val').textContent = SYNTH_PARAMS.cutoff;
+            if (filterNode) {
+                filterNode.frequency.setValueAtTime(SYNTH_PARAMS.cutoff, audioCtx.currentTime);
+            }
+        }
+
+        function updateFilterResonance(value) {
+            SYNTH_PARAMS.resonance = parseFloat(value);
+            document.getElementById('resonance-val').textContent = SYNTH_PARAMS.resonance.toFixed(1);
+            if (filterNode) {
+                filterNode.Q.setValueAtTime(SYNTH_PARAMS.resonance, audioCtx.currentTime);
+            }
+        }
+
+        function startNote() {
+            const now = audioCtx.currentTime;
+            
+            // Check and resume context
+            startAudioContext(); 
+            
+            // Cleanup existing nodes if they somehow remained
+            if (oscillator) { stopNote(); }
+
+            // 1. Create Nodes
+            oscillator = audioCtx.createOscillator();
+            filterNode = audioCtx.createBiquadFilter();
+            gainNode = audioCtx.createGain();
+            analyserNode = audioCtx.createAnalyser();
+
+            // Analyser setup (controls the detail of the scope)
+            analyserNode.fftSize = 2048;
+            analyserNode.dataArray = new Uint8Array(analyserNode.frequencyBinCount);
+            
+            // 2. Set Parameters
+            oscillator.type = SYNTH_PARAMS.wave;
+            oscillator.frequency.setValueAtTime(midiToFreq(SYNTH_PARAMS.midiNote), now);
+            
+            filterNode.type = 'lowpass';
+            filterNode.frequency.setValueAtTime(SYNTH_PARAMS.cutoff, now);
+            filterNode.Q.setValueAtTime(SYNTH_PARAMS.resonance, now);
+            
+            // Simple volume AD envelope
+            gainNode.gain.setValueAtTime(0.0001, now);
+            gainNode.gain.linearRampToValueAtTime(0.5, now + SYNTH_PARAMS.attack);
+
+            // 3. Connect Nodes
+            oscillator.connect(filterNode);
+            filterNode.connect(gainNode);
+            gainNode.connect(analyserNode); // VCA output feeds the Analyser
+            analyserNode.connect(audioCtx.destination); // Analyser feeds the speakers
+
+            // 4. Start Audio and Visuals
+            oscillator.start(now);
+            drawOscilloscope();
+        }
+
+        function stopNote() {
+            const now = audioCtx.currentTime;
+
+            if (oscillator) {
+                // VCA Release Envelope
+                gainNode.gain.cancelScheduledValues(now);
+                gainNode.gain.setValueAtTime(gainNode.gain.value, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.0001, now + SYNTH_PARAMS.release);
+
+                // Stop after release
+                oscillator.stop(now + SYNTH_PARAMS.release); 
+            }
+            
+            // Stop the oscilloscope animation
+            cancelAnimationFrame(animationFrameId);
+
+            // Clear the reference
+            oscillator = null; 
+        }
+        
+        // --- Event Handler ---
+        function handleNote(isPressed) {
+            if (isPressed) {
+                startNote();
+            } else {
+                stopNote();
+            }
+        }
+
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            updateSynthParams();
+            updatePitch(SYNTH_PARAMS.midiNote);
+            updateFilterCutoff(SYNTH_PARAMS.cutoff);
+            updateFilterResonance(SYNTH_PARAMS.resonance);
+        });
+    </script>
+</body>
+</html>
