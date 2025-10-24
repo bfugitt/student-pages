@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>VCF Filter Control Module</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 15px;
+            background-color: #2b2b2b;
+            color: #ccc;
+        }
+        .synth-section {
+            padding: 10px;
+            border: 1px solid #555;
+            border-radius: 6px;
+            background-color: #202020;
+        }
+        .synth-section h3 { 
+            color: #00ffff; 
+            margin-top: 0;
+        }
+        .control-group { 
+            text-align: left; 
+            margin-bottom: 10px;
+        }
+        .control-group label {
+            display: block;
+            font-weight: bold;
+            color: #aaa;
+            font-size: 12px;
+            margin-bottom: 3px;
+        }
+        input[type="range"] { 
+            width: 100%; 
+            -webkit-appearance: none;
+            height: 5px;
+            background: #444;
+            border-radius: 3px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 15px;
+            width: 15px;
+            border-radius: 50%;
+            background: #00ffff;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="synth-section">
+        <h3>VCF Filter Control</h3>
+        <p style="font-size: 11px; color: #ff9800;">Voltage Controlled Filter: Lowpass.</p>
+        
+        <div class="control-group">
+            <label for="cutoff-slider">VCF Cutoff (Hz): <span id="cutoff-val">8000</span></label>
+            <input type="range" id="cutoff-slider" min="50" max="15000" step="10" value="8000" oninput="updateVCF()">
+        </div>
+        <div class="control-group">
+            <label for="resonance-slider">VCF Resonance (Q): <span id="resonance-val">0.5</span></label>
+            <input type="range" id="resonance-slider" min="0.1" max="15" step="0.1" value="0.5" oninput="updateVCF()">
+        </div>
+    </div>
+
+    <script>
+        let VCF_PARAMS = { 
+            cutoff: 8000, 
+            resonance: 0.5 
+        };
+        const STORAGE_KEY = 'VCF_PARAMS';
+
+        function updateVCF() {
+            VCF_PARAMS.cutoff = parseFloat(document.getElementById('cutoff-slider').value);
+            VCF_PARAMS.resonance = parseFloat(document.getElementById('resonance-slider').value);
+
+            // Update display values
+            document.getElementById('cutoff-val').textContent = VCF_PARAMS.cutoff;
+            document.getElementById('resonance-val').textContent = VCF_PARAMS.resonance.toFixed(1);
+            
+            // --- CRITICAL STEP: Save state to browser's local storage ---
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(VCF_PARAMS));
+        }
+
+        // Function to load state on startup
+        function loadVCFState() {
+            const savedState = localStorage.getItem(STORAGE_KEY);
+            if (savedState) {
+                VCF_PARAMS = JSON.parse(savedState);
+            }
+            
+            // Apply loaded values to the sliders
+            document.getElementById('cutoff-slider').value = VCF_PARAMS.cutoff;
+            document.getElementById('resonance-slider').value = VCF_PARAMS.resonance;
+
+            updateVCF(); // Trigger update to set labels and save state if loaded
+        }
+        
+        window.addEventListener('storage', (e) => {
+            if (e.key === STORAGE_KEY) {
+                loadVCFState();
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', loadVCFState);
+    </script>
+</body>
+</html>

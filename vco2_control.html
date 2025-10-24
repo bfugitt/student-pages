@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>VCO 2 Control Module</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 15px;
+            background-color: #2b2b2b;
+            color: #ccc;
+        }
+        .synth-section {
+            padding: 10px;
+            border: 1px solid #555;
+            border-radius: 6px;
+            background-color: #202020;
+        }
+        .synth-section h3 { 
+            /* VCO 2 will use a different color for visual distinction */
+            color: #ff00ff; 
+            margin-top: 0;
+        }
+        .control-group { 
+            text-align: left; 
+            margin-bottom: 15px;
+        }
+        .control-group label {
+            display: block;
+            font-weight: bold;
+            color: #aaa;
+            font-size: 12px;
+            margin-bottom: 3px;
+        }
+        input[type="range"] { 
+            width: 100%; 
+            -webkit-appearance: none;
+            height: 5px;
+            background: #444;
+            border-radius: 3px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 15px;
+            width: 15px;
+            border-radius: 50%;
+            background: #ff00ff; /* Use VCO 2 color here */
+            cursor: pointer;
+        }
+        select {
+            width: 100%;
+            padding: 5px;
+            background-color: #444;
+            color: white;
+            border: 1px solid #555;
+            border-radius: 4px;
+        }
+        #fine-tune-display, #octave-display {
+            color: #ff00ff;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="synth-section">
+        <h3>Voltage Controlled Oscillator 2 (VCO 2)</h3>
+        <p style="font-size: 11px; color: #ff00ff;">Defines the waveform and pitch for the second oscillator.</p>
+        
+        <div class="control-group">
+            <label for="wave-selector">Waveform:</label>
+            <select id="wave-selector" onchange="updateVCO2Params()">
+                <option value="sawtooth">Sawtooth</option>
+                <option value="square">Square</option>
+                <option value="sine">Sine</option>
+                <option value="triangle">Triangle</option>
+            </select>
+        </div>
+        
+        <div class="control-group">
+            <label for="range-octave">Range (Octave Offset): <span id="octave-display">0</span></label>
+            <input type="range" id="range-octave" min="-2" max="2" value="0" step="1" oninput="updateVCO2Params()">
+        </div>
+        
+        <div class="control-group">
+            <label for="fine-tune">Fine Tune (Cents): <span id="fine-tune-display">0</span></label>
+            <input type="range" id="fine-tune" min="-50" max="50" value="0" step="1" oninput="updateVCO2Params()">
+        </div>
+    </div>
+
+    <script>
+        // CRITICAL CHANGE: Use 'VCO2_PARAMS' key
+        const STORAGE_KEY = 'VCO2_PARAMS';
+        
+        let VCO2_PARAMS = {
+            wave: 'sawtooth',
+            rangeOctave: 0,
+            fineTuneCents: 0
+        };
+
+        function updateVCO2Params() {
+            VCO2_PARAMS.wave = document.getElementById('wave-selector').value;
+            VCO2_PARAMS.rangeOctave = parseInt(document.getElementById('range-octave').value);
+            VCO2_PARAMS.fineTuneCents = parseInt(document.getElementById('fine-tune').value);
+
+            // Update display values
+            document.getElementById('octave-display').textContent = VCO2_PARAMS.rangeOctave;
+            document.getElementById('fine-tune-display').textContent = VCO2_PARAMS.fineTuneCents;
+            
+            // Save state to browser's local storage
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(VCO2_PARAMS));
+            
+            // Dispatch event to notify other modules (like sequencer/keyboard)
+            window.dispatchEvent(new Event('vco2Change'));
+        }
+
+        function loadVCO2State() {
+            const savedState = localStorage.getItem(STORAGE_KEY);
+            if (savedState) {
+                VCO2_PARAMS = JSON.parse(savedState);
+            }
+            
+            // Apply loaded values to the controls
+            document.getElementById('wave-selector').value = VCO2_PARAMS.wave;
+            document.getElementById('range-octave').value = VCO2_PARAMS.rangeOctave;
+            document.getElementById('fine-tune').value = VCO2_PARAMS.fineTuneCents;
+            
+            updateVCO2Params(); // Trigger update to set labels and save state
+        }
+        
+        // Listen for changes from other tabs/windows updating the same localStorage key
+        window.addEventListener('storage', (e) => {
+            if (e.key === STORAGE_KEY) {
+                loadVCO2State();
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', loadVCO2State);
+    </script>
+</body>
+</html>

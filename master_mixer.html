@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Master Mixer Control Module</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 15px;
+            background-color: #2b2b2b;
+            color: #ccc;
+        }
+        .synth-section {
+            padding: 10px;
+            border: 1px solid #555;
+            border-radius: 6px;
+            background-color: #202020;
+        }
+        .synth-section h3 { 
+            color: #ff9800; 
+            margin-top: 0;
+        }
+        .control-group { 
+            text-align: left; 
+            margin-bottom: 10px;
+        }
+        .control-group label {
+            display: block;
+            font-weight: bold;
+            color: #aaa;
+            font-size: 12px;
+            margin-bottom: 3px;
+        }
+        input[type="range"] { 
+            width: 100%; 
+            -webkit-appearance: none;
+            height: 5px;
+            background: #444;
+            border-radius: 3px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 15px;
+            width: 15px;
+            border-radius: 50%;
+            background: #ff9800;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="synth-section">
+        <h3>Master Mixer</h3>
+        <p style="font-size: 11px; color: #ff9800;">Controls the final output volume.</p>
+        
+        <div class="control-group" style="margin-top: 10px;">
+            <label for="master-gain">Master Volume: <span id="gain-val">0.5</span></label>
+            <input type="range" id="master-gain" min="0" max="1" step="0.05" value="0.5" oninput="updateMasterGain()">
+        </div>
+    </div>
+
+    <script>
+        let GLOBAL_PARAMS = { masterGain: 0.5 };
+        const STORAGE_KEY = 'GLOBAL_PARAMS';
+
+        function updateMasterGain() {
+            GLOBAL_PARAMS.masterGain = parseFloat(document.getElementById('master-gain').value);
+            document.getElementById('gain-val').textContent = GLOBAL_PARAMS.masterGain.toFixed(2);
+            
+            // --- CRITICAL STEP: Save state to browser's local storage ---
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(GLOBAL_PARAMS));
+        }
+
+        function loadMasterGainState() {
+            const savedState = localStorage.getItem(STORAGE_KEY);
+            if (savedState) {
+                GLOBAL_PARAMS = JSON.parse(savedState);
+            }
+            
+            document.getElementById('master-gain').value = GLOBAL_PARAMS.masterGain;
+            updateMasterGain(); 
+        }
+        
+        document.addEventListener('DOMContentLoaded', loadMasterGainState);
+    </script>
+</body>
+</html>

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>BPM and Sequence Length Module</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 15px;
+            background-color: #2b2b2b;
+            color: #ccc;
+        }
+        .synth-section {
+            padding: 10px;
+            border: 1px solid #555;
+            border-radius: 6px;
+            background-color: #202020;
+        }
+        .synth-section h3 { 
+            color: #00ffff; 
+            margin-top: 0;
+        }
+        .control-group { 
+            text-align: left; 
+            margin-bottom: 15px;
+        }
+        .control-group label {
+            display: block;
+            font-weight: bold;
+            color: #aaa;
+            font-size: 12px;
+            margin-bottom: 3px;
+        }
+        input[type="range"] { 
+            width: 100%; 
+            -webkit-appearance: none;
+            height: 5px;
+            background: #444;
+            border-radius: 3px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 15px;
+            width: 15px;
+            border-radius: 50%;
+            background: #00ffff;
+            cursor: pointer;
+        }
+        #bpm-display, #step-count-val {
+            color: #00ffff;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="synth-section">
+        <h3>Tempo & Sequence Length</h3>
+        <p style="font-size: 11px; color: #ff9800;">Global timing controls for the sequencer.</p>
+        
+        <div class="control-group">
+            <label for="bpm-slider">Tempo (BPM): <span id="bpm-display">120</span></label>
+            <input type="range" id="bpm-slider" min="60" max="240" value="120" oninput="updateTiming()">
+        </div>
+        
+        <div class="control-group">
+            <label for="step-count">Steps (Length, Max 16): <span id="step-count-val">16</span></label>
+            <input type="range" id="step-count" min="4" max="16" value="16" oninput="updateTiming()">
+        </div>
+    </div>
+
+    <script>
+        // Default timing settings
+        let TIMING_PARAMS = { 
+            bpm: 120, 
+            numSteps: 16 
+        };
+        const STORAGE_KEY = 'TIMING_PARAMS';
+
+        function updateTiming() {
+            TIMING_PARAMS.bpm = parseInt(document.getElementById('bpm-slider').value);
+            TIMING_PARAMS.numSteps = parseInt(document.getElementById('step-count').value);
+
+            // Update display values
+            document.getElementById('bpm-display').textContent = TIMING_PARAMS.bpm;
+            document.getElementById('step-count-val').textContent = TIMING_PARAMS.numSteps;
+            
+            // --- CRITICAL STEP: Save state to browser's local storage ---
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(TIMING_PARAMS));
+            
+            // Optional: Trigger a notification event so the Sequencer knows the BPM changed
+            window.dispatchEvent(new Event('timingChange'));
+        }
+
+        // Function to load state on startup
+        function loadTimingState() {
+            const savedState = localStorage.getItem(STORAGE_KEY);
+            if (savedState) {
+                TIMING_PARAMS = JSON.parse(savedState);
+            }
+            
+            // Apply loaded values to the controls
+            document.getElementById('bpm-slider').value = TIMING_PARAMS.bpm;
+            document.getElementById('step-count').value = TIMING_PARAMS.numSteps;
+            
+            updateTiming(); // Trigger update to set labels and save state
+        }
+        
+        // Listen for changes from other tabs/windows updating the same localStorage key
+        window.addEventListener('storage', (e) => {
+            if (e.key === STORAGE_KEY) {
+                loadTimingState();
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', loadTimingState);
+    </script>
+</body>
+</html>

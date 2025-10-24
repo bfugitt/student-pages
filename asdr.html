@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>ADSR Envelope Control Module</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 15px;
+            background-color: #2b2b2b;
+            color: #ccc;
+        }
+        .synth-section {
+            padding: 10px;
+            border: 1px solid #555;
+            border-radius: 6px;
+            background-color: #202020;
+        }
+        .synth-section h3 { 
+            color: #00ffff; 
+            margin-top: 0;
+        }
+        .control-group { 
+            text-align: left; 
+            margin-bottom: 10px;
+        }
+        .control-group label {
+            display: block;
+            font-weight: bold;
+            color: #aaa;
+            font-size: 12px;
+            margin-bottom: 3px;
+        }
+        input[type="range"] { 
+            width: 100%; 
+            -webkit-appearance: none;
+            height: 5px;
+            background: #444;
+            border-radius: 3px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 15px;
+            width: 15px;
+            border-radius: 50%;
+            background: #00ffff;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="synth-section">
+        <h3>ADSR Envelope (A/D/S/R)</h3>
+        <p style="font-size: 11px; color: #ff9800;">This module is the *controller* for the envelope.</p>
+        
+        <div class="control-group">
+            <label for="attack-slider">Attack (s): <span id="attack-val">0.01</span></label>
+            <input type="range" id="attack-slider" min="0.005" max="2" step="0.005" value="0.01" oninput="updateADSR()">
+        </div>
+        <div class="control-group">
+            <label for="decay-slider">Decay (s): <span id="decay-val">0.3</span></label>
+            <input type="range" id="decay-slider" min="0.05" max="3" step="0.05" value="0.3" oninput="updateADSR()">
+        </div>
+        <div class="control-group">
+            <label for="sustain-slider">Sustain (Lvl): <span id="sustain-val">0.5</span></label>
+            <input type="range" id="sustain-slider" min="0" max="1" step="0.05" value="0.5" oninput="updateADSR()">
+        </div>
+         <div class="control-group">
+            <label for="release-slider">Release (s): <span id="release-val">0.5</span></label>
+            <input type="range" id="release-slider" min="0.05" max="3" step="0.05" value="0.5" oninput="updateADSR()">
+        </div>
+    </div>
+
+    <script>
+        // Default ADSR settings structure
+        let ADSR_PARAMS = { 
+            attack: 0.01, 
+            decay: 0.3, 
+            sustain: 0.5, 
+            release: 0.5 
+        };
+
+        // Function to update the UI labels and save to localStorage
+        function updateADSR() {
+            ADSR_PARAMS.attack = parseFloat(document.getElementById('attack-slider').value);
+            ADSR_PARAMS.decay = parseFloat(document.getElementById('decay-slider').value);
+            ADSR_PARAMS.sustain = parseFloat(document.getElementById('sustain-slider').value);
+            ADSR_PARAMS.release = parseFloat(document.getElementById('release-slider').value);
+
+            // Update display values
+            document.getElementById('attack-val').textContent = ADSR_PARAMS.attack;
+            document.getElementById('decay-val').textContent = ADSR_PARAMS.decay;
+            document.getElementById('sustain-val').textContent = ADSR_PARAMS.sustain;
+            document.getElementById('release-val').textContent = ADSR_PARAMS.release;
+            
+            // --- CRITICAL STEP: Save state to browser's local storage ---
+            localStorage.setItem('ADSR_PARAMS', JSON.stringify(ADSR_PARAMS));
+        }
+
+        // Function to load state on startup
+        function loadADSRState() {
+            const savedState = localStorage.getItem('ADSR_PARAMS');
+            if (savedState) {
+                ADSR_PARAMS = JSON.parse(savedState);
+            }
+            
+            // Apply loaded values to the sliders and labels
+            document.getElementById('attack-slider').value = ADSR_PARAMS.attack;
+            document.getElementById('decay-slider').value = ADSR_PARAMS.decay;
+            document.getElementById('sustain-slider').value = ADSR_PARAMS.sustain;
+            document.getElementById('release-slider').value = ADSR_PARAMS.release;
+
+            updateADSR(); // Trigger update to set labels and save state if loaded
+        }
+        
+        // Listen for changes from other tabs/windows updating the same localStorage key
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'ADSR_PARAMS') {
+                // If another window updated this, refresh our controls
+                loadADSRState();
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', loadADSRState);
+    </script>
+</body>
+</html>

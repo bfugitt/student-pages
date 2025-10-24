@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>VCO 1 Control Module</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 15px;
+            background-color: #2b2b2b;
+            color: #ccc;
+        }
+        .synth-section {
+            padding: 10px;
+            border: 1px solid #555;
+            border-radius: 6px;
+            background-color: #202020;
+        }
+        .synth-section h3 { 
+            color: #00ffff; 
+            margin-top: 0;
+        }
+        .control-group { 
+            text-align: left; 
+            margin-bottom: 10px;
+        }
+        .control-group label {
+            display: block;
+            font-weight: bold;
+            color: #aaa;
+            font-size: 12px;
+            margin-bottom: 3px;
+        }
+        input[type="range"] { 
+            width: 100%; 
+            -webkit-appearance: none;
+            height: 5px;
+            background: #444;
+            border-radius: 3px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 15px;
+            width: 15px;
+            border-radius: 50%;
+            background: #00ffff;
+            cursor: pointer;
+        }
+        .range-select {
+            display: flex;
+            justify-content: space-between;
+            background-color: #383838;
+            padding: 5px;
+            border-radius: 4px;
+        }
+        .range-select button {
+            background: none;
+            border: 1px solid #666;
+            color: #ccc;
+            padding: 3px 8px;
+            cursor: pointer;
+            font-size: 10px;
+            flex-grow: 1;
+            margin: 0 2px;
+            border-radius: 3px;
+        }
+        .range-select button.active-range {
+            background-color: #00ffff;
+            color: #222;
+            border-color: #00ffff;
+            font-weight: bold;
+        }
+        select {
+            width: 100%;
+            padding: 5px;
+            background: #444;
+            color: white;
+            border: 1px solid #666;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="synth-section">
+        <h3>VCO 1 Control</h3>
+        <p style="font-size: 11px; color: #ff9800;">Set waveform, octave, and fine tuning.</p>
+        
+        <div class="control-group">
+            <label>Range (Foot ')</label>
+            <div class="range-select" id="vco1-range-buttons">
+                <button data-octave="-2" onclick="setVcoRange(-2)">32'</button>
+                <button data-octave="-1" onclick="setVcoRange(-1)">16'</button>
+                <button data-octave="0" class="active-range" onclick="setVcoRange(0)">8'</button>
+                <button data-octave="1" onclick="setVcoRange(1)">4'</button>
+                <button data-octave="2" onclick="setVcoRange(2)">2'</button>
+            </div>
+        </div>
+        <div class="control-group">
+            <label for="vco1-fine-tune">Fine Tune (Cents): <span id="vco1-fine-val">0</span></label>
+            <input type="range" id="vco1-fine-tune" min="-50" max="50" step="1" value="0" oninput="updateVCO()">
+        </div>
+        <div class="control-group">
+            <label for="vco1-wave">Waveform</label>
+            <select id="vco1-wave" onchange="updateVCO()">
+                <option value="sawtooth">Sawtooth</option>
+                <option value="square">Square</option>
+                <option value="triangle">Triangle</option>
+                <option value="sine">Sine</option>
+            </select>
+        </div>
+    </div>
+
+    <script>
+        // Initial VCO 1 settings
+        let VCO_PARAMS = {
+            wave: 'sawtooth',
+            rangeOctave: 0,
+            fineTuneCents: 0
+        };
+        const STORAGE_KEY = 'VCO1_PARAMS';
+
+        function updateVCO() {
+            VCO_PARAMS.wave = document.getElementById('vco1-wave').value;
+            VCO_PARAMS.fineTuneCents = parseFloat(document.getElementById('vco1-fine-tune').value);
+            
+            // Update display values
+            document.getElementById('vco1-fine-val').textContent = VCO_PARAMS.fineTuneCents;
+            
+            // --- CRITICAL STEP: Save state to browser's local storage ---
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(VCO_PARAMS));
+        }
+
+        function setVcoRange(octaveOffset) {
+            VCO_PARAMS.rangeOctave = octaveOffset;
+            
+            // Update button visual
+            document.querySelectorAll(`#vco1-range-buttons button`).forEach(btn => {
+                btn.classList.toggle('active-range', parseInt(btn.dataset.octave) === octaveOffset);
+            });
+            updateVCO();
+        }
+
+        // Function to load state on startup
+        function loadVCOState() {
+            const savedState = localStorage.getItem(STORAGE_KEY);
+            if (savedState) {
+                VCO_PARAMS = JSON.parse(savedState);
+            }
+            
+            // Apply loaded values to the controls
+            document.getElementById('vco1-wave').value = VCO_PARAMS.wave;
+            document.getElementById('vco1-fine-tune').value = VCO_PARAMS.fineTuneCents;
+            setVcoRange(VCO_PARAMS.rangeOctave); // This calls updateVCO()
+        }
+        
+        // Listen for changes from other tabs/windows (though unlikely for a control module)
+        window.addEventListener('storage', (e) => {
+            if (e.key === STORAGE_KEY) {
+                loadVCOState();
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', loadVCOState);
+    </script>
+</body>
+</html>

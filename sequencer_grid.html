@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>8x16 Sequencer (Dual VCO Ready)</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 15px;
+            background-color: #2b2b2b;
+            color: #ccc;
+        }
+        .synth-section {
+            padding: 10px;
+            border: 1px solid #555;
+            border-radius: 6px;
+            background-color: #202020;
+        }
+        .synth-section h3 { 
+            color: #ff9800; 
+            margin-top: 0;
+        }
+        
+        /* --- FLEXBOX LAYOUT (Ensures rows/columns display correctly) --- */
+        #sequencer-grid {
+            padding: 5px;
+            background-color: #111;
+            border-radius: 4px;
+        }
+        .sequencer-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 2px;
+            gap: 2px;
+        }
+        .note-label {
+            width: 30px; 
+            text-align: right;
+            padding-right: 5px;
+            color: #aaa;
+            font-size: 10px;
+            height: 20px;
+            line-height: 20px;
+            flex-shrink: 0;
+        }
+        .step-container {
+            display: flex;
+            flex-grow: 1;
+            gap: 2px;
+        }
+        .step {
+            flex-grow: 1; 
+            height: 20px;
+            background-color: #444;
+            border-radius: 2px;
+            cursor: pointer;
+            transition: background-color 0.1s;
+        }
+        /* --- END FLEXBOX LAYOUT --- */
+
+        .step.on {
+            background-color: #00ffff;
+            box-shadow: 0 0 5px #00ffff;
+        }
+        .step.active-col {
+            background-color: #303030; 
+        }
+        .step.on.active-col {
+            background-color: #ff9800;
+            box-shadow: 0 0 5px #ff9800;
+        }
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .controls button {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        #play-button {
+            background-color: #4CAF50;
+            color: white;
+        }
+        #play-button.playing {
+            background-color: #f44336;
+        }
+        #clear-grid-button { 
+            background-color: #95a5a6; 
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="synth-section">
+        <h3>8x16 Grid Sequencer</h3>
+        <p style="font-size: 11px; color: #ff9800;">Reads parameters from all control modules (ADSR, VCO, etc.).</p>
+        
+        <div class="controls">
+            <button id="play-button" onclick="togglePlayback()">▶️ Play Sequencer</button>
+            <button id="clear-grid-button" onclick="clearGrid()">Clear Grid</button>
+        </div>
+        
+        <div id="sequencer-grid">
+            </div>
+        
+    </div>
+
+    <script>
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+        
+        const C_MAJOR_SCALE = [72, 71, 69, 67, 65, 64, 62, 60]; // C5 to C4
+        const NOTE_LABELS = ["C5", "B4", "A4", "G4", "F4", "E4", "D4", "C4"];
+        const NUM_ROWS = C_MAJOR_SCALE.length;
+        const MAX_STEPS = 16;
+        
+        // --- Sequencing State ---
+        let isPlaying = false;
+        let currentStep = 0;
+        let timerID = null;
+        let sequence = Array(NUM_ROWS).fill(0).map(() => Array(MAX_STEPS).fill(false)); 
+        
+        // Voice Tracking: Key is midiNote, Value is an Array of active voices (FIX FOR STUCK NOTES)
+        const activeNotes = {}; 
+
+        // --- Utility Functions: Reads ALL parameters from localStorage ---
+        function getParams() {
+            const defaults = {
+                adsr: { attack: 0.01, decay: 0.3, sustain: 0.5, release: 0.5 },
+                vco1: { wave: 'sawtooth', rangeOctave: 0, fineTuneCents: 0 }, // Assuming original is VCO1
+                vco2: { wave: 'sawtooth', rangeOctave: 0, fineTuneCents: 0 }, // New VCO2
+                vcf: { cutoff: 15000, resonance: 0.5 },
+                global: { masterGain: 0.5 },
+                timing: { bpm: 120, numSteps: 16 }
+            };
+            
+            const adsrStr = localStorage.getItem('ADSR_PARAMS');
+            const vco1Str = localStorage.getItem('VCO1_PARAMS'); // Read VCO1 params
+            const vco2Str = localStorage.getItem('VCO2_PARAMS'); // Read VCO2 params
+            const vcfStr = localStorage.getItem('VCF_PARAMS');
+            const globalStr = localStorage.getItem('GLOBAL_PARAMS');
+            const timingStr = localStorage.getItem('TIMING_PARAMS');
+            
+            return {
+                adsr: adsrStr ? JSON.parse(adsrStr) : defaults.adsr,
+                vco1: vco1Str ? JSON.parse(vco1Str) : defaults.vco1,
+                vco2: vco2Str ? JSON.parse(vco2Str) : defaults.vco2,
+                vcf: vcfStr ? JSON.parse(vcfStr) : defaults.vcf,
+                global: globalStr ? JSON.parse(globalStr) : defaults.global,
+                timing: timingStr ? JSON.parse(timingStr) : defaults.timing
+            };
+        }
+
+        function midiToFreq(midiNote, octaveOffset, fineTuneCents) {
+            const adjustedNote = midiNote + (octaveOffset * 12) + (fineTuneCents / 100);
+            return 440 * Math.pow(2, (adjustedNote - 69) / 12);
+        }
+
+        // --- Audio Generation ---
+        let masterGainNode = null;
+        
+        function initializeAudio() {
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            masterGainNode = audioCtx.createGain();
+            masterGainNode.connect(audioCtx.destination);
+        }
+
+        // --- UPDATED startNote: Starts two VCOs per note ---
+        function startNote(midiNote) {
+            const now = audioCtx.currentTime;
+            if (audioCtx.state !== 'running') { return null; } 
+
+            // Get all needed parameters
+            const { adsr, vco1, vco2, vcf, global } = getParams(); 
+            
+            // --- 1. VCO 1 Setup ---
+            const vco1Node = audioCtx.createOscillator();
+            vco1Node.type = vco1.wave; 
+            vco1Node.frequency.setValueAtTime(
+                midiToFreq(midiNote, vco1.rangeOctave, vco1.fineTuneCents), now
+            );
+            
+            // --- 2. VCO 2 Setup ---
+            const vco2Node = audioCtx.createOscillator();
+            vco2Node.type = vco2.wave; 
+            vco2Node.frequency.setValueAtTime(
+                midiToFreq(midiNote, vco2.rangeOctave, vco2.fineTuneCents), now
+            );
+            
+            // --- 3. Filter and Gain Setup ---
+            const vcfNode = audioCtx.createBiquadFilter();
+            const noteGain = audioCtx.createGain();
+
+            vcfNode.type = 'lowpass';
+            vcfNode.frequency.setValueAtTime(vcf.cutoff, now);
+            vcfNode.Q.setValueAtTime(vcf.resonance, now);
+            masterGainNode.gain.setValueAtTime(global.masterGain, now);
+            
+            // ADSR Envelope
+            noteGain.gain.setValueAtTime(0.0001, now);
+            noteGain.gain.linearRampToValueAtTime(0.5, now + adsr.attack); 
+            noteGain.gain.setTargetAtTime(adsr.sustain * 0.5 + 0.0001, now + adsr.attack, adsr.decay / 5); 
+
+            // --- 4. Connections & Start ---
+            vco1Node.connect(vcfNode);
+            vco2Node.connect(vcfNode); // Connect VCO 2 here!
+            vcfNode.connect(noteGain);
+            noteGain.connect(masterGainNode); 
+
+            vco1Node.start(now);
+            vco2Node.start(now); // Start VCO 2 here!
+
+            // 5. TRACK VOICE
+            const voice = { vco1Node, vco2Node, noteGain, midiNote }; // Track both oscillators
+            
+            if (!activeNotes[midiNote]) {
+                activeNotes[midiNote] = [];
+            }
+            activeNotes[midiNote].push(voice);
+            
+            return voice;
+        }
+
+        // --- UPDATED stopNote: Stops two VCOs per voice ---
+        function stopNote(voice) {
+            const now = audioCtx.currentTime;
+            if (!voice) return;
+
+            const { adsr } = getParams();
+            const midiNote = voice.midiNote;
+            
+            // RELEASE Phase
+            voice.noteGain.gain.cancelScheduledValues(now);
+            voice.noteGain.gain.setValueAtTime(voice.noteGain.gain.value, now);
+            voice.noteGain.gain.exponentialRampToValueAtTime(0.0001, now + adsr.release);
+
+            // Stop both oscillators after the release time
+            voice.vco1Node.stop(now + adsr.release);
+            voice.vco2Node.stop(now + adsr.release);
+
+            // Clean up the voice object from the activeNotes array after its release
+            setTimeout(() => {
+                if (activeNotes[midiNote]) {
+                    const index = activeNotes[midiNote].indexOf(voice);
+                    if (index > -1) {
+                        activeNotes[midiNote].splice(index, 1);
+                        if (activeNotes[midiNote].length === 0) {
+                            delete activeNotes[midiNote];
+                        }
+                    }
+                }
+            }, adsr.release * 1000 + 50);
+        }
+
+        // --- Sequencer Core Logic ---
+
+        function getStepDurationMs() {
+            const { bpm } = getParams().timing;
+            return (60 / bpm) / 4 * 1000; 
+        }
+
+        function calculateAndRestartTimer() {
+            if (isPlaying) {
+                clearInterval(timerID);
+                const stepDurationMs = getStepDurationMs();
+                timerID = setInterval(stepSequencer, stepDurationMs);
+            }
+            renderGrid();
+        }
+
+        function togglePlayback() {
+            if (audioCtx.state === 'suspended') { audioCtx.resume(); }
+
+            isPlaying = !isPlaying;
+
+            if (isPlaying) {
+                document.getElementById('play-button').textContent = "⏸️ Stop Sequencer";
+                document.getElementById('play-button').classList.add('playing');
+                currentStep = 0; 
+                calculateAndRestartTimer();
+            } else {
+                document.getElementById('play-button').textContent = "▶️ Play Sequencer";
+                document.getElementById('play-button').classList.remove('playing');
+                clearInterval(timerID);
+                timerID = null;
+                document.querySelectorAll('.step').forEach(el => el.classList.remove('active-col'));
+            }
+        }
+
+        // --- UPDATED stepSequencer: Uses the returned voice for precise stopping ---
+        function stepSequencer() {
+            const { numSteps } = getParams().timing;
+            const stepDurationMs = getStepDurationMs();
+            
+            // 1. VISUAL UPDATE
+            document.querySelectorAll('.step').forEach(el => el.classList.remove('active-col'));
+
+            for (let row = 0; row < NUM_ROWS; row++) {
+                const stepElement = document.querySelector(`.step[data-row="${row}"][data-col="${currentStep}"]`);
+                if (stepElement) {
+                    stepElement.classList.add('active-col');
+                }
+            }
+
+            // 2. PLAY NOTES
+            for (let row = 0; row < NUM_ROWS; row++) {
+                if (currentStep < numSteps && sequence[row][currentStep]) { 
+                    const noteNumber = C_MAJOR_SCALE[row];
+                    
+                    const newVoice = startNote(noteNumber);
+                    
+                    if (newVoice) {
+                        const gateTime = (stepDurationMs / 1000) * 0.8; 
+                        setTimeout(() => stopNote(newVoice), gateTime * 1000); 
+                    }
+                }
+            }
+            
+            // 3. STEP ADVANCE
+            currentStep = (currentStep + 1) % numSteps; 
+        }
+
+        // --- Grid Generation and Interaction ---
+        
+        function saveSequenceState() {
+            localStorage.setItem('ACTIVE_SEQUENCE', JSON.stringify(sequence));
+        }
+
+        function loadSequenceState() {
+            const savedSeq = localStorage.getItem('ACTIVE_SEQUENCE');
+            if (savedSeq) {
+                sequence = JSON.parse(savedSeq);
+            }
+        }
+
+        function createGrid() {
+            const sequencerGrid = document.getElementById('sequencer-grid');
+            sequencerGrid.innerHTML = '';
+            
+            for (let row = 0; row < NUM_ROWS; row++) {
+                // 1. Create the Row container
+                const rowContainer = document.createElement('div');
+                rowContainer.className = 'sequencer-row';
+                
+                // 2. Add note label
+                const label = document.createElement('div');
+                label.className = 'note-label';
+                label.textContent = NOTE_LABELS[row];
+                rowContainer.appendChild(label);
+                
+                // 3. Create a step container for the steps
+                const stepContainer = document.createElement('div');
+                stepContainer.className = 'step-container';
+                rowContainer.appendChild(stepContainer);
+                
+                for (let col = 0; col < MAX_STEPS; col++) {
+                    const stepElement = document.createElement('div');
+                    stepElement.className = 'step';
+                    stepElement.dataset.row = row;
+                    stepElement.dataset.col = col;
+                    
+                    stepElement.onclick = () => {
+                        sequence[row][col] = !sequence[row][col];
+                        stepElement.classList.toggle('on', sequence[row][col]);
+                        saveSequenceState();
+                    };
+                    stepContainer.appendChild(stepElement);
+                }
+                sequencerGrid.appendChild(rowContainer);
+            }
+            renderGrid();
+        }
+
+        function renderGrid() {
+            const { numSteps } = getParams().timing;
+            const allSteps = document.querySelectorAll('.step');
+            
+            allSteps.forEach(stepElement => {
+                const row = parseInt(stepElement.dataset.row);
+                const col = parseInt(stepElement.dataset.col);
+                
+                stepElement.classList.toggle('on', sequence[row][col]);
+                
+                stepElement.style.opacity = (col < numSteps) ? 1 : 0.3;
+                stepElement.style.pointerEvents = (col < numSteps) ? 'auto' : 'none';
+            });
+        }
+
+        function clearGrid() {
+            sequence = Array(NUM_ROWS).fill(0).map(() => Array(MAX_STEPS).fill(false));
+            renderGrid();
+            saveSequenceState();
+            
+            // Stop all actively running voices immediately
+            for (const midiNote in activeNotes) {
+                activeNotes[midiNote].forEach(voice => {
+                    if (voice.vco1Node) {
+                        try {
+                            voice.vco1Node.stop();
+                            voice.vco2Node.stop();
+                        } catch(e) { /* ignore if already stopped */ }
+                    }
+                });
+            }
+            // Clear the tracking map
+            for (const key in activeNotes) delete activeNotes[key];
+        }
+
+
+        // --- Event Listeners and Initialization ---
+        
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'TIMING_PARAMS' || e.key === 'VCO1_PARAMS' || e.key === 'VCO2_PARAMS') {
+                // If any relevant parameter changes, ensure the timer/grid is updated
+                calculateAndRestartTimer(); 
+            }
+            if (e.key === 'ACTIVE_SEQUENCE') {
+                 loadSequenceState(); 
+                 renderGrid();
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeAudio();
+            loadSequenceState();
+            createGrid(); 
+            calculateAndRestartTimer();
+        });
+    </script>
+</body>
+</html>

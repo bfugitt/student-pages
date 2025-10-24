@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Polyphonic Keyboard Module</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 15px;
+            background-color: #2b2b2b;
+            color: #ccc;
+        }
+        .synth-section {
+            padding: 10px;
+            border: 1px solid #555;
+            border-radius: 6px;
+            background-color: #202020;
+        }
+        .synth-section h3 { 
+            color: #4CAF50; 
+            margin-top: 0;
+        }
+        .keyboard-controls {
+            margin-bottom: 10px;
+        }
+        #octave-selector {
+            padding: 5px;
+            background-color: #444;
+            color: white;
+            border: 1px solid #555;
+            border-radius: 4px;
+        }
+        .keyboard {
+            display: flex;
+            /* Flex-wrap is now restored to 'wrap' or 'nowrap' based on preference, 
+               but since it's only one octave, it will fit easily */
+            flex-wrap: nowrap; 
+            justify-content: center;
+            padding: 10px 0;
+            user-select: none;
+            cursor: pointer;
+            overflow-x: auto;
+        }
+        .key {
+            width: 40px;
+            min-width: 40px; 
+            height: 120px;
+            background-color: white;
+            border: 1px solid #333;
+            border-radius: 0 0 5px 5px;
+            margin-right: 2px;
+            position: relative;
+            box-shadow: 0 4px 0 #bbb;
+            transition: all 0.05s ease;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            font-size: 10px;
+            color: #333;
+            z-index: 1;
+        }
+        .key.black {
+            background-color: #333;
+            color: #eee;
+            width: 25px;
+            min-width: 25px;
+            height: 80px;
+            margin-left: -12.5px;
+            margin-right: -12.5px;
+            z-index: 2;
+            box-shadow: 0 4px 0 #000;
+        }
+        .key.active {
+            box-shadow: none;
+            transform: translateY(4px);
+            background-color: #00ffff; 
+        }
+        .key.black.active {
+            background-color: #ff9800; 
+        }
+    </style>
+</head>
+<body>
+    <div class="synth-section">
+        <h3>Polyphonic Keyboard</h3>
+        <p style="font-size: 11px; color: #4CAF50;">Click the keys or use the **A** row on your keyboard to play one octave.</p>
+        
+        <div class="keyboard-controls">
+            <label for="octave-selector">Base Octave:</label>
+            <select id="octave-selector" onchange="updateBaseOctave()">
+                <option value="48">C3</option>
+                <option value="60" selected>C4</option>
+                <option value="72">C5</option>
+                <option value="84">C6</option>
+            </select>
+        </div>
+        
+        <div id="keyboard" class="keyboard">
+            </div>
+    </div>
+
+    <script>
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+        
+        let BASE_OCTAVE = 60; // Default C4 (MIDI note 60)
+        
+        // --- Unique Voice Tracking Fix ---
+        const activeVoices = {}; 
+        
+        // --- REVERTED SINGLE-OCTAVE QWERTY KEY MAPPING ---
+        const KEY_MAP = {
+            // White Keys: C, D, E, F, G, A, B
+            'a': 0, // C
+            's': 2, // D
+            'd': 4, // E
+            'f': 5, // F
+            'g': 7, // G
+            'h': 9, // A
+            'j': 11, // B
+            'k': 12, // C (next octave)
+
+            // Black Keys: C#, D#, F#, G#, A#
+            'w': 1, // C#
+            'e': 3, // D#
+            't': 6, // F#
+            'y': 8, // G#
+            'u': 10 // A#
+        };
+        
+        let masterGainNode = null;
+
+        function initializeAudio() {
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            masterGainNode = audioCtx.createGain();
+            masterGainNode.gain.setValueAtTime(0.5, audioCtx.currentTime); 
+            masterGainNode.connect(audioCtx.destination);
+        }
+
+        // --- Utility Functions: Reads ALL parameters from localStorage ---
+        function getParams() {
+            const defaults = {
+                adsr: { attack: 0.01, decay: 0.3, sustain: 0.5, release: 0.5 },
+                vco1: { wave: 'sawtooth', rangeOctave: 0, fineTuneCents: 0 },
+                vco2: { wave: 'sawtooth', rangeOctave: 0, fineTuneCents: 0 },
+                vcf: { cutoff: 15000, resonance: 0.5 },
+                global: { masterGain: 0.5 }
+            };
+            
+            const adsrStr = localStorage.getItem('ADSR_PARAMS');
+            const vco1Str = localStorage.getItem('VCO1_PARAMS');
+            const vco2Str = localStorage.getItem('VCO2_PARAMS'); 
+            const vcfStr = localStorage.getItem('VCF_PARAMS');
+            const globalStr = localStorage.getItem('GLOBAL_PARAMS');
+            
+            return {
+                adsr: adsrStr ? JSON.parse(adsrStr) : defaults.adsr,
+                vco1: vco1Str ? JSON.parse(vco1Str) : defaults.vco1, 
+                vco2: vco2Str ? JSON.parse(vco2Str) : defaults.vco2, 
+                vcf: vcfStr ? JSON.parse(vcfStr) : defaults.vcf,
+                global: globalStr ? JSON.parse(globalStr) : defaults.global
+            };
+        }
+
+        function midiToFreq(midiNote, octaveOffset, fineTuneCents) {
+            const adjustedNote = midiNote + (octaveOffset * 12) + (fineTuneCents / 100);
+            return 440 * Math.pow(2, (adjustedNote - 69) / 12);
+        }
+
+        // --- Audio Functions (Dual VCO and Unique Voice Tracking) ---
+
+        function startNote(midiNote) {
+            const now = audioCtx.currentTime;
+            if (audioCtx.state !== 'running') { return null; } 
+
+            const { adsr, vco1, vco2, vcf, global } = getParams(); 
+            
+            // VCO 1 Setup
+            const vco1Node = audioCtx.createOscillator();
+            vco1Node.type = vco1.wave; 
+            vco1Node.frequency.setValueAtTime(
+                midiToFreq(midiNote, vco1.rangeOctave, vco1.fineTuneCents), now
+            );
+            
+            // VCO 2 Setup
+            const vco2Node = audioCtx.createOscillator();
+            vco2Node.type = vco2.wave; 
+            vco2Node.frequency.setValueAtTime(
+                midiToFreq(midiNote, vco2.rangeOctave, vco2.fineTuneCents), now
+            );
+            
+            // Filter and Gain Setup
+            const vcfNode = audioCtx.createBiquadFilter();
+            const noteGain = audioCtx.createGain();
+
+            vcfNode.type = 'lowpass';
+            vcfNode.frequency.setValueAtTime(vcf.cutoff, now);
+            vcfNode.Q.setValueAtTime(vcf.resonance, now);
+            masterGainNode.gain.setValueAtTime(global.masterGain, now);
+            
+            // ADSR Envelope
+            noteGain.gain.setValueAtTime(0.0001, now);
+            noteGain.gain.linearRampToValueAtTime(1.0, now + adsr.attack); 
+            noteGain.gain.setTargetAtTime(adsr.sustain, now + adsr.attack, adsr.decay / 5); 
+
+            // Connections & Start
+            vco1Node.connect(vcfNode);
+            vco2Node.connect(vcfNode);
+            vcfNode.connect(noteGain);
+            noteGain.connect(masterGainNode); 
+
+            vco1Node.start(now);
+            vco2Node.start(now); 
+
+            // TRACK VOICE
+            const voice = { vco1Node, vco2Node, noteGain, midiNote }; 
+            
+            if (!activeVoices[midiNote]) {
+                activeVoices[midiNote] = [];
+            }
+            activeVoices[midiNote].push(voice);
+            
+            return voice;
+        }
+
+        function stopNote(midiNote) {
+            const now = audioCtx.currentTime;
+            const { adsr } = getParams();
+            
+            const voices = activeVoices[midiNote];
+            if (!voices || voices.length === 0) return;
+
+            // Get the voice that was most recently started
+            const voice = voices.pop(); 
+            
+            // RELEASE Phase
+            voice.noteGain.gain.cancelScheduledValues(now);
+            voice.noteGain.gain.setValueAtTime(voice.noteGain.gain.value, now);
+            voice.noteGain.gain.exponentialRampToValueAtTime(0.0001, now + adsr.release);
+
+            // Stop both oscillators
+            voice.vco1Node.stop(now + adsr.release);
+            voice.vco2Node.stop(now + adsr.release);
+            
+            // Cleanup: delete the key if the array is empty
+            if (activeVoices[midiNote].length === 0) {
+                delete activeVoices[midiNote];
+            }
+        }
+
+        // --- Keyboard Functions ---
+
+        function noteOn(midiNote) {
+            const keyElement = document.querySelector(`.key[data-midi="${midiNote}"]`);
+            if (keyElement) {
+                keyElement.classList.add('active');
+            }
+            startNote(midiNote);
+        }
+
+        function noteOff(midiNote) {
+            const keyElement = document.querySelector(`.key[data-midi="${midiNote}"]`);
+            if (keyElement) {
+                // Remove highlight only if this is the last voice for this note
+                if (!activeVoices[midiNote] || activeVoices[midiNote].length === 1) {
+                    keyElement.classList.remove('active');
+                }
+            }
+            stopNote(midiNote);
+        }
+        
+        function updateBaseOctave() {
+            BASE_OCTAVE = parseInt(document.getElementById('octave-selector').value);
+            // Re-render the keyboard
+            createKeyboard();
+        }
+
+        // --- RESTORED createKeyboard (SINGLE OCTAVE) ---
+        function createKeyboard() {
+            const keyboard = document.getElementById('keyboard');
+            keyboard.innerHTML = '';
+            
+            const noteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+            
+            // Create 13 keys (C to C one octave up)
+            const NUM_KEYS = 13; 
+            
+            for (let i = 0; i < NUM_KEYS; i++) { 
+                const midiNote = BASE_OCTAVE + i;
+                const noteValue = i % 12; // 0-11 for C-B
+                const noteName = noteNames[noteValue];
+                
+                const key = document.createElement('div');
+                key.className = 'key';
+                key.dataset.midi = midiNote;
+                
+                // Display the note name and octave number for C notes
+                if (noteValue === 0) {
+                     // Calculate current octave number: (BASE_OCTAVE/12) is the base octave, + floor(i/12) is the offset (0 or 1)
+                     key.textContent = noteName + (Math.floor(BASE_OCTAVE / 12) + Math.floor(i / 12));
+                } else {
+                     key.textContent = noteName;
+                }
+
+                // Determine black or white key
+                if ([1, 3, 6, 8, 10].includes(noteValue)) {
+                    key.classList.add('black');
+                }
+                
+                // --- Mouse Listeners ---
+                key.addEventListener('mousedown', () => noteOn(midiNote));
+                key.addEventListener('mouseup', () => noteOff(midiNote)); 
+                key.addEventListener('mouseleave', () => {
+                    if (key.classList.contains('active')) {
+                        noteOff(midiNote);
+                    }
+                });
+
+                keyboard.appendChild(key);
+            }
+        }
+        
+        // --- Keyboard Event Handling ---
+        const pressedKeys = {}; 
+
+        document.addEventListener('keydown', (e) => {
+            const keyChar = e.key.toLowerCase();
+            const noteOffset = KEY_MAP[keyChar];
+            
+            if (noteOffset !== undefined && !pressedKeys[keyChar]) {
+                e.preventDefault();
+                const midiNote = BASE_OCTAVE + noteOffset;
+                noteOn(midiNote);
+                pressedKeys[keyChar] = midiNote; 
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            const keyChar = e.key.toLowerCase();
+            const midiNote = pressedKeys[keyChar];
+            
+            if (midiNote !== undefined) {
+                e.preventDefault();
+                noteOff(midiNote);
+                delete pressedKeys[keyChar];
+            }
+        });
+        
+        // --- Initialization ---
+        
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'GLOBAL_PARAMS') {
+                 const params = getParams().global;
+                 masterGainNode.gain.setValueAtTime(params.masterGain, audioCtx.currentTime);
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeAudio();
+            createKeyboard();
+        });
+    </script>
+</body>
+</html>
