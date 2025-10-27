@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Math Fact Master</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Tone.js for sound effects -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+    <!-- Use Inter font -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fb;
+        }
+        /* Custom styles for the input box and flash effects */
+        #answerInput {
+            transition: all 0.1s ease-in-out;
+        }
+        .correct-flash {
+            border-color: #10B981 !important; /* Green 500 */
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.7) !important;
+        }
+        .incorrect-flash {
+            border-color: #EF4444 !important; /* Red 500 */
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.7) !important;
+        }
+        /* Style for the checkbox/toggle */
+        input[type="checkbox"] {
+            -webkit-appearance: none;
+            appearance: none;
+            background-color: #fff;
+            margin: 0;
+            font: inherit;
+            color: currentColor;
+            width: 1.5em;
+            height: 1.5em;
+            border: 2px solid #ccc;
+            border-radius: 0.35em;
+            transform: translateY(-0.075em);
+            display: grid;
+            place-content: center;
+            cursor: pointer;
+        }
+        input[type="checkbox"]:checked {
+            background-color: #4f46e5;
+            border-color: #4f46e5;
+        }
+        input[type="checkbox"]:checked::before {
+            content: "✓";
+            color: white;
+            font-size: 1.1em;
+            font-weight: 900;
+        }
+
+        /* Custom slider track/thumb styling for aesthetics */
+        input[type=range]::-webkit-slider-runnable-track {
+            background: #9ca3af;
+            height: 8px;
+            border-radius: 4px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            border: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #4f46e5;
+            margin-top: -6px;
+            box-shadow: 0 0 3px rgba(0,0,0,0.2);
+            cursor: grab;
+        }
+        /* Custom styles for the purple slider track */
+        #maxMultSlider::-webkit-slider-runnable-track {
+            background: #a78bfa; /* purple-400 */
+        }
+        #maxMultSlider::-webkit-slider-thumb {
+            background: #7c3aed; /* purple-600 */
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <div id="appContainer" class="bg-white p-8 md:p-12 rounded-2xl shadow-2xl w-full max-w-lg transition-all duration-300">
+        <!-- Title and Logo -->
+        <h1 class="text-4xl font-extrabold text-indigo-700 text-center mb-8">
+            <span class="inline-block transform -rotate-6 text-yellow-500 mr-2">⭐</span>
+            Math Fact Master
+            <span class="inline-block transform rotate-6 text-green-500 ml-2">🧠</span>
+        </h1>
+
+        <!-- Screen Container -->
+        <div id="screenContainer">
+            <!-- Content will be injected here by JavaScript -->
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIGURATION & STATE ---
+        const config = {
+            1: { target: 10, maxNum: 20, maxMult: 0 },
+            2: { target: 20, maxNum: 20, maxMult: 0 },
+            3: { target: 30, maxNum: 20, maxMult: 12 },
+            4: { target: 40, maxNum: 20, maxMult: 12 },
+            5: { target: 50, maxNum: 20, maxMult: 12 },
+        };
+
+        let activeOpsSelection = ['+', '-'];
+        let currentOpList = [];
+
+        let currentProblem = {};
+        let currentGrade = 0;
+        let score = 0;
+        let attempted = 0;
+        let timer = 0;
+        let gameInterval = null;
+        const GAME_DURATION = 60; // seconds
+        let state = 'SELECT_GRADE'; // SELECT_GRADE | GAME | RESULTS
+        let isMultipleChoice = false;
+
+        // STATE for Max A/S Fact Value (Highest Sum or Minuend)
+        let maxFactValue = 20; 
+        // NEW STATE for Max M/D Factor Value (Highest Multiplier/Divisor factor)
+        let maxMultValue = 12;
+
+        const screenContainer = document.getElementById('screenContainer');
+
+        // Initialize simple synth for sound effects
+        const correctSynth = new Tone.PolySynth(Tone.Synth, { oscillator: { type: "sine" } }).toDestination();
+        const incorrectSynth = new Tone.NoiseSynth({
+            noise: { type: "pink" },
+            envelope: { attack: 0.005, decay: 0.1, sustain: 0, release: 0.1 }
+        }).toDestination();
+        // NEW: Success sound (a pleasant, sustained chord)
+        const successSynth = new Tone.PolySynth(Tone.AMSynth).toDestination();
+
+        function playCorrectSound() { correctSynth.triggerAttackRelease(["C5", "E5"], "8n"); }
+        function playIncorrectSound() { incorrectSynth.triggerAttackRelease("16n"); }
+        function playSuccessSound() { successSynth.triggerAttackRelease(["C4", "E4", "G4"], "0.5"); }
+
+        // --- PROBLEM GENERATION LOGIC ---
+
+        /**
+         * Generates a random integer between min (inclusive) and max (exclusive).
+         */
+        function randInt(min, max) {
+            return Math.floor(Math.random() * (max - min)) + min;
+        }
+
+        /**
+         * Generates a math problem based on the selected grade configuration and operation list.
+         */
+        function generateProblem(grade, opList) {
+            
+            // Pick an operation from the currently active list
+            const op = opList[randInt(0, opList.length)];
+
+            let num1, num2, answer, problemText;
+
+            // Addition and Subtraction logic
+            if (op === '+' || op === '-') {
+                // Use the A/S slider value for the upper constraint on facts (sums/minuends)
+                const maxLimit = maxFactValue;
+                
+                if (op === '+') {
+                    let sum;
+                    // Generate two numbers whose sum does not exceed the maxLimit
+                    do {
+                        // Limit the numbers used as operands to the maxLimit, ensuring they are at least 1
+                        num1 = randInt(1, maxLimit); 
+                        num2 = randInt(1, maxLimit);
+                        sum = num1 + num2;
+                    } while (sum > maxLimit); 
+
+                    answer = sum;
+                    problemText = `${num1} + ${num2} =`;
+                } else { // Subtraction
+                    // Minuend (num1) can be up to maxLimit
+                    num1 = randInt(1, maxLimit + 1); 
+                    // Subtrahend (num2) must be less than or equal to num1. We include 0 for subtraction (e.g., 5-0)
+                    num2 = randInt(0, num1); 
+                    
+                    answer = num1 - num2;
+                    problemText = `${num1} - ${num2} =`;
+                }
+            }
+            // Multiplication and Division logic
+            else if (op === '*' || op === '/') {
+                // Use the M/D slider value for the upper constraint on factors
+                const maxFactor = maxMultValue;
+                
+                if (op === '*') {
+                    // Operands range from 0 to maxFactor
+                    num1 = randInt(0, maxFactor + 1);
+                    num2 = randInt(0, maxFactor + 1);
+                    answer = num1 * num2;
+                    problemText = `${num1} × ${num2} =`;
+                } else { // Division - Ensure clean division
+                    // Factors range from 1 to maxFactor
+                    const factor1 = randInt(1, maxFactor + 1);
+                    const factor2 = randInt(1, maxFactor + 1);
+                    const product = factor1 * factor2;
+
+                    // The problem is product / factorX = factorY
+                    if (Math.random() < 0.5) {
+                        num1 = product;
+                        num2 = factor1;
+                        answer = factor2;
+                    } else {
+                        num1 = product;
+                        num2 = factor2;
+                        answer = factor1;
+                    }
+                    problemText = `${num1} ÷ ${num2} =`;
+                }
+            }
+
+            return { problemText, answer };
+        }
+
+        /**
+         * Generates an array of four answer choices, including the correct one.
+         */
+        function generateChoices(correctAnswer) {
+            const choices = new Set();
+            choices.add(correctAnswer);
+
+            while (choices.size < 4) {
+                let distractor;
+                const deviation = randInt(-4, 5); 
+                distractor = correctAnswer + deviation;
+
+                if (distractor >= 0 && !choices.has(distractor)) {
+                    choices.add(distractor);
+                }
+                if (choices.size < 4 && correctAnswer < 5) {
+                     distractor = randInt(0, 10);
+                     if (distractor >= 0 && !choices.has(distractor)) choices.add(distractor);
+                }
+            }
+
+            const choicesArray = Array.from(choices);
+            for (let i = choicesArray.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [choicesArray[i], choicesArray[j]] = [choicesArray[j], choicesArray[i]];
+            }
+
+            return choicesArray;
+        }
+
+        // --- UI RENDERING FUNCTIONS ---
+
+        /**
+         * Updates the global activeOpsSelection state based on the checkboxes.
+         */
+        window.updateActiveOperations = function() {
+            const newOps = [];
+            if (document.getElementById('op-add')?.checked) newOps.push('+');
+            if (document.getElementById('op-sub')?.checked) newOps.push('-');
+            if (document.getElementById('op-mult')?.checked) newOps.push('*');
+            if (document.getElementById('op-div')?.checked) newOps.push('/');
+            
+            // If nothing is selected, default to addition
+            activeOpsSelection = newOps.length > 0 ? newOps : ['+'];
+        }
+
+        /**
+         * Function to toggle the multiple choice state from the UI checkbox.
+         */
+        window.toggleMultipleChoice = function(checked) {
+            isMultipleChoice = checked;
+        }
+
+        /**
+         * Updates the max A/S fact value state based on the slider input.
+         */
+        window.updateMaxFactValue = function(value) {
+            maxFactValue = parseInt(value, 10);
+            document.getElementById('maxFactValueDisplay').textContent = maxFactValue;
+        }
+
+        /**
+         * NEW: Updates the max M/D factor value state based on the slider input.
+         */
+        window.updateMaxMultValue = function(value) {
+            maxMultValue = parseInt(value, 10);
+            document.getElementById('maxMultValueDisplay').textContent = maxMultValue;
+        }
+
+
+        /**
+         * Renders the grade selection screen.
+         */
+        function renderSelectGrade() {
+            const ops = [
+                { id: 'op-add', symbol: '+', color: 'green-700' },
+                { id: 'op-sub', symbol: '-', color: 'blue-700' },
+                { id: 'op-mult', symbol: '×', color: 'red-700' },
+                { id: 'op-div', symbol: '÷', color: 'purple-700' },
+            ];
+
+            let opsCheckboxes = ops.map(op => `
+                <label class="flex items-center space-x-2 bg-white p-3 rounded-lg shadow-sm border border-gray-200 cursor-pointer hover:bg-gray-50">
+                    <input type="checkbox" id="${op.id}" 
+                           ${activeOpsSelection.includes(op.symbol) ? 'checked' : ''} 
+                           onchange="updateActiveOperations()">
+                    <span class="text-2xl font-bold text-${op.color}">${op.symbol}</span>
+                </label>
+            `).join('');
+
+
+            let gradeButtons = '';
+            for (let g = 1; g <= 5; g++) {
+                const gradeDetails = config[g];
+                const opsAvailable = g <= 2 ? 'Addition, Subtraction' : 'All Four Operations';
+                gradeButtons += `
+                    <button onclick="startGame(${g})"
+                            class="w-full text-left p-4 mb-3 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl shadow-lg transition duration-150 ease-in-out transform hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-indigo-300">
+                        <span class="font-bold text-lg">${g}${g === 1 ? 'st' : g === 2 ? 'nd' : g === 3 ? 'rd' : 'th'} Grade</span>
+                        <div class="text-sm opacity-90">
+                            Target: ${gradeDetails.target} in 1 min. | Ops: ${opsAvailable}
+                        </div>
+                    </button>
+                `;
+            }
+
+            screenContainer.innerHTML = `
+                <h2 class="text-2xl font-semibold text-gray-800 mb-6 text-center">Set Practice Options</h2>
+
+                <!-- Max Addition / Subtraction Fact Value Slider -->
+                <div class="p-4 rounded-xl bg-indigo-50 border border-indigo-200 mb-6">
+                    <label class="text-lg font-extrabold text-gray-800 mb-3 block">
+                        Max Addition / Subtraction Fact Value: 
+                        <span id="maxFactValueDisplay" class="text-indigo-600">${maxFactValue}</span>
+                    </label>
+                    <input type="range" id="maxFactSlider" min="5" max="20" step="1" 
+                           value="${maxFactValue}" 
+                           oninput="updateMaxFactValue(this.value)"
+                           class="w-full h-2 bg-indigo-200 rounded-lg appearance-none cursor-pointer">
+                    <div class="flex justify-between text-sm text-gray-600 mt-1">
+                        <span>5</span>
+                        <span>20 (Max)</span>
+                    </div>
+                </div>
+
+                <!-- NEW: Max Multiplication / Division Factor Slider -->
+                <div class="p-4 rounded-xl bg-purple-50 border border-purple-200 mb-6">
+                    <label class="text-lg font-extrabold text-gray-800 mb-3 block">
+                        Max Multiplication / Division Factor: 
+                        <span id="maxMultValueDisplay" class="text-purple-600">${maxMultValue}</span>
+                    </label>
+                    <input type="range" id="maxMultSlider" min="1" max="12" step="1" 
+                           value="${maxMultValue}" 
+                           oninput="updateMaxMultValue(this.value)"
+                           class="w-full h-2 bg-purple-200 rounded-lg appearance-none cursor-pointer">
+                    <div class="flex justify-between text-sm text-gray-600 mt-1">
+                        <span>1 (Easy)</span>
+                        <span>12 (Max)</span>
+                    </div>
+                </div>
+
+                <!-- Operation Selection -->
+                <div class="p-4 rounded-xl bg-yellow-50 border border-yellow-200 mb-6">
+                    <label class="text-lg font-extrabold text-gray-800 mb-3 block">Select Operations to Include:</label>
+                    <div class="grid grid-cols-4 gap-2">
+                        ${opsCheckboxes}
+                    </div>
+                    <p class="text-xs text-gray-600 mt-2">Note: Grades 1-2 only use + and -.</p>
+                </div>
+
+                <!-- Multiple Choice Toggle -->
+                <div class="flex items-center justify-between p-4 mb-8 rounded-xl bg-gray-100 shadow-inner">
+                    <label for="mc-toggle" class="text-lg font-semibold text-gray-700">Use Multiple Choice (Easier Input)?</label>
+                    <input type="checkbox" id="mc-toggle" ${isMultipleChoice ? 'checked' : ''} onchange="toggleMultipleChoice(this.checked)">
+                </div>
+
+                <h2 class="text-2xl font-semibold text-gray-800 mb-6 text-center">Choose Grade Level</h2>
+
+                <div class="space-y-3">
+                    ${gradeButtons}
+                </div>
+            `;
+            state = 'SELECT_GRADE';
+            // Ensure initial checkbox state is correctly reflected in activeOpsSelection
+            updateActiveOperations(); 
+        }
+
+        /**
+         * Renders the main game screen (conditional input/buttons).
+         */
+        function renderGame() {
+            const target = config[currentGrade].target;
+            const gradeText = `${currentGrade}${currentGrade === 1 ? 'st' : currentGrade === 2 ? 'nd' : currentGrade === 3 ? 'rd' : 'th'}`;
+
+            let inputElement;
+            let helperText;
+
+            if (isMultipleChoice) {
+                inputElement = `<div id="choicesContainer" class="grid grid-cols-2 gap-4"></div>`;
+                helperText = '<p class="text-base text-gray-500">Click the correct answer!</p>';
+            } else {
+                inputElement = `
+                    <input type="number" id="answerInput"
+                           class="w-full p-4 text-center text-4xl font-extrabold text-gray-800 border-4 border-indigo-300 rounded-xl focus:ring-4 focus:ring-indigo-400 focus:border-indigo-500 transition-all duration-200"
+                           placeholder="?" autofocus>
+                `;
+                helperText = '<p class="text-base text-gray-500">Correct answers submit automatically. Press ENTER to check an incorrect answer.</p>';
+            }
+
+            screenContainer.innerHTML = `
+                <div class="flex justify-between items-center mb-6 text-lg font-medium text-gray-600">
+                    <div>Grade: <span class="font-bold text-indigo-700">${gradeText}</span></div>
+                    <div>Target: <span class="font-bold text-indigo-700">${target}</span></div>
+                </div>
+
+                <div class="flex justify-between items-center mb-8 p-4 bg-gray-100 rounded-lg shadow-inner">
+                    <div id="scoreDisplay" class="text-2xl font-bold text-green-600">Score: 0</div>
+                    <div id="timerDisplay" class="text-3xl font-extrabold text-red-500">60s</div>
+                </div>
+
+                <!-- Problem Area -->
+                <div class="flex flex-col items-center justify-center h-40 bg-indigo-50 rounded-xl shadow-md p-6 mb-8">
+                    <p id="problemText" class="text-5xl font-extrabold text-indigo-800 mb-4 select-none">
+                        <!-- Problem text goes here -->
+                    </p>
+                    ${helperText}
+                </div>
+
+                <!-- Answer Input or Buttons -->
+                ${inputElement}
+
+                <!-- End Practice button -->
+                <button onclick="endGameEarly()" class="mt-4 w-full py-2 bg-red-400 hover:bg-red-500 text-white font-bold rounded-xl transition duration-150 shadow-md">
+                    End Practice
+                </button>
+            `;
+            state = 'GAME';
+            setupGameListeners();
+            nextProblem();
+        }
+
+        /**
+         * Renders the results screen with 'Try Again' option.
+         */
+        function renderResults() {
+            const target = config[currentGrade].target;
+            const gradeText = `${currentGrade}${currentGrade === 1 ? 'st' : currentGrade === 2 ? 'nd' : currentGrade === 3 ? 'rd' : 'th'}`;
+
+            const accuracy = attempted > 0 ? ((score / attempted) * 100).toFixed(0) : 0;
+            const passed = score >= target;
+
+            // Play the success sound if the target was met
+            if (passed) {
+                playSuccessSound();
+            }
+
+            screenContainer.innerHTML = `
+                <h2 class="text-3xl font-bold text-center mb-6 ${passed ? 'text-green-600' : 'text-red-600'}">
+                    ${passed ? 'FANTASTIC WORK! GOAL REACHED!' : 'Keep Practicing!'}
+                </h2>
+
+                <div class="p-6 bg-gray-100 rounded-xl shadow-inner mb-8">
+                    <p class="text-lg font-medium text-gray-700 mb-2">Grade: <span class="font-bold text-indigo-700">${gradeText}</span></p>
+                    <p class="text-lg font-medium text-gray-700 mb-2">Target Score: <span class="font-bold text-indigo-700">${target}</span></p>
+                    <hr class="my-4 border-gray-300">
+                    <p class="text-xl font-bold text-green-600 mb-2">Correct Answers: ${score}</p>
+                    <p class="text-xl font-bold text-gray-800 mb-2">Total Attempted: ${attempted}</p>
+                    <p class="text-xl font-bold text-indigo-700">Accuracy: ${accuracy}%</p>
+                </div>
+
+                <div class="text-center mb-6">
+                    <p class="text-2xl font-extrabold ${passed ? 'text-green-700' : 'text-red-700'}">
+                        ${passed ? 'Target Met!' : `Needed ${target - score} more correct answers.`}
+                    </p>
+                </div>
+
+                <div class="flex space-x-4">
+                    <button onclick="startGame(${currentGrade})"
+                            class="w-1/2 py-3 bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl shadow-lg transition duration-150 focus:outline-none focus:ring-4 focus:ring-green-300">
+                        Keep Practicing (Grade ${currentGrade})
+                    </button>
+
+                    <button onclick="renderSelectGrade()"
+                            class="w-1/2 py-3 bg-indigo-500 hover:bg-indigo-600 text-white font-bold rounded-xl shadow-lg transition duration-150 focus:outline-none focus:ring-4 focus:ring-indigo-300">
+                        Try Another Grade
+                    </button>
+                </div>
+            `;
+            state = 'RESULTS';
+        }
+
+        // --- GAME FLOW LOGIC ---
+
+        window.endGameEarly = function() {
+            if (gameInterval) clearInterval(gameInterval);
+            currentGrade = 0;
+            state = 'SELECT_GRADE';
+            renderSelectGrade();
+        }
+
+        function startGame(grade) {
+            if (gameInterval) clearInterval(gameInterval);
+
+            currentGrade = grade;
+            score = 0;
+            attempted = 0;
+            timer = GAME_DURATION;
+
+            // DETERMINE ACTIVE OPERATIONS BASED ON SELECTION AND GRADE LIMITS
+            currentOpList = [...activeOpsSelection];
+            if (grade <= 2) {
+                // Grades 1 and 2 only do A/S
+                currentOpList = currentOpList.filter(op => op === '+' || op === '-');
+            }
+            
+            // Safety check: ensure the list isn't empty after filtering
+            if (currentOpList.length === 0) {
+                 // Fallback to addition if the student somehow deselected A/S in grades 1-2
+                 currentOpList = ['+']; 
+            }
+
+            renderGame();
+            updateTimerDisplay();
+            updateScoreDisplay();
+
+            gameInterval = setInterval(() => {
+                timer--;
+                updateTimerDisplay();
+                if (timer <= 0) {
+                    clearInterval(gameInterval);
+                    renderResults();
+                }
+            }, 1000);
+        }
+
+        /**
+         * Displays the next math problem.
+         */
+        function nextProblem() {
+            // Pass the derived operation list to the problem generator
+            currentProblem = generateProblem(currentGrade, currentOpList);
+            document.getElementById('problemText').textContent = currentProblem.problemText;
+
+            if (isMultipleChoice) {
+                const choices = generateChoices(currentProblem.answer);
+                const choicesContainer = document.getElementById('choicesContainer');
+                
+                let buttonsHTML = '';
+                choices.forEach(choice => {
+                    buttonsHTML += `
+                        <button onclick="checkAnswer(${choice})"
+                                class="py-4 text-3xl font-bold bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl shadow-lg transition duration-150 ease-in-out transform hover:scale-105">
+                            ${choice}
+                        </button>
+                    `;
+                });
+                choicesContainer.innerHTML = buttonsHTML;
+            } else {
+                const input = document.getElementById('answerInput');
+                input.value = '';
+                input.focus();
+            }
+        }
+
+        /**
+         * Sets up event listeners for the game input (used only in typing mode).
+         */
+        function setupGameListeners() {
+            if (isMultipleChoice) return;
+
+            const input = document.getElementById('answerInput');
+            if (input) {
+                // Auto-submit on correct answer + length match
+                input.addEventListener('input', (e) => {
+                    const userAnswer = e.target.value;
+                    const correctAnswer = currentProblem.answer.toString();
+
+                    if (userAnswer.length === correctAnswer.length && parseInt(userAnswer, 10) === currentProblem.answer) {
+                        checkAnswer(userAnswer);
+                    }
+                });
+
+                // Explicit check/feedback on Enter press (used for incorrect or incomplete answers)
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        checkAnswer(input.value);
+                    }
+                });
+            }
+        }
+
+        /**
+         * Checks the user's answer against the correct answer.
+         */
+        function checkAnswer(inputValue) {
+            if (state !== 'GAME' || timer <= 0) return;
+
+            const userAnswer = parseInt(inputValue, 10);
+            const isCorrect = userAnswer === currentProblem.answer;
+
+            attempted++;
+
+            if (isCorrect) {
+                playCorrectSound();
+                score++;
+                updateScoreDisplay();
+
+                const input = document.getElementById('answerInput');
+                if (input && !isMultipleChoice) {
+                    input.classList.add('correct-flash');
+                    setTimeout(() => input.classList.remove('correct-flash'), 200);
+                }
+
+                setTimeout(nextProblem, isMultipleChoice ? 100 : 0);
+            } else {
+                playIncorrectSound();
+                
+                if (!isMultipleChoice) {
+                    const input = document.getElementById('answerInput');
+                    if (input) {
+                        input.classList.add('incorrect-flash');
+                        setTimeout(() => {
+                            input.classList.remove('incorrect-flash');
+                            input.value = '';
+                            input.focus();
+                        }, 500);
+                    }
+                } else {
+                    setTimeout(nextProblem, 100);
+                }
+            }
+        }
+
+        // --- DISPLAY UTILITIES ---
+
+        function updateTimerDisplay() {
+            const timerDisplay = document.getElementById('timerDisplay');
+            if (timerDisplay) {
+                timerDisplay.textContent = `${timer}s`;
+                if (timer <= 10) {
+                    timerDisplay.classList.add('text-red-700', 'animate-pulse');
+                } else {
+                    timerDisplay.classList.remove('text-red-700', 'animate-pulse');
+                }
+            }
+        }
+
+        function updateScoreDisplay() {
+            const scoreDisplay = document.getElementById('scoreDisplay');
+            if (scoreDisplay) {
+                scoreDisplay.textContent = `Score: ${score}`;
+            }
+        }
+
+        // --- INITIALIZATION ---
+        window.onload = renderSelectGrade;
+
+    </script>
+</body>
+</html>
