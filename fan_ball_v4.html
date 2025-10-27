@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Fan Ball Scroller (Complex Shapes)</title>
+    <style>
+        /* CSS remains the same for core elements */
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            font-family: sans-serif;
+        }
+
+        #game-container {
+            width: 400px;
+            height: 600px;
+            border: 5px solid #333;
+            background-color: #e0f7fa;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #ball {
+            width: 30px;
+            height: 30px;
+            background-color: #ff4500;
+            border-radius: 50%;
+            position: absolute;
+            bottom: 10px;
+            left: calc(50% - 15px);
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+
+        #fan {
+            width: 80px;
+            height: 20px;
+            background-color: #008080;
+            position: absolute;
+            bottom: 0;
+            left: calc(50% - 40px);
+            border-top: 5px solid #005f5f;
+            z-index: 10;
+        }
+
+        #fan-wind {
+            position: absolute;
+            top: -500px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60px;
+            height: 500px;
+            background-color: rgba(173, 216, 230, 0.3);
+            pointer-events: none;
+        }
+
+        .fan-active #fan-wind {
+            box-shadow: 0 0 20px 5px rgba(173, 216, 230, 0.8);
+            transition: box-shadow 0.1s;
+        }
+
+        #goal-line {
+            position: absolute;
+            top: 10px;
+            left: 0;
+            width: 100%;
+            height: 5px;
+            background-color: #4CAF50;
+            box-shadow: 0 0 10px #4CAF50;
+        }
+
+        #score-board {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 1.2em;
+            color: #333;
+            z-index: 20;
+            padding: 5px 10px;
+            background-color: rgba(255, 255, 255, 0.7);
+            border-radius: 5px;
+        }
+
+        /* NEW: Obstacle styling for L and C shapes */
+        .obstacle {
+            background-color: #663399; /* Purple obstacle */
+            border-radius: 5px;
+            box-shadow: 0 5px 0 #4a2470;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="score-board">Level: <span id="level-display">1</span></div>
+        <div id="goal-line"></div>
+        <div id="fan">
+            <div id="fan-wind"></div>
+        </div>
+        <div id="ball"></div>
+    </div>
+
+    <script>
+        // --- Game Setup ---
+        const container = document.getElementById('game-container');
+        const ball = document.getElementById('ball');
+        const fan = document.getElementById('fan');
+        const levelDisplay = document.getElementById('level-display');
+
+        // Physics constants
+        const G = 0.5;
+        const FAN_FORCE_Y = 1.2;
+        const FAN_FORCE_X = 0.1;
+        const FAN_RANGE = 40;
+        const HORIZONTAL_DAMPING = 0.98;
+        const BALL_DAMPING = 0.9;
+
+        // Game state variables
+        let ballX, ballY, ballVx, ballVy;
+        let fanX, fanVx = 0;
+        let keys = {};
+        let currentLevel = 1;
+        let obstacles = [];
+
+        // Dimensions
+        const BALL_SIZE = 30;
+        const FAN_WIDTH = 80;
+        const CONTAINER_WIDTH = container.clientWidth;
+        const CONTAINER_HEIGHT = container.clientHeight;
+        const GOAL_Y = 10;
+        
+        // Obstacle Constants
+        const MIN_GAP_WIDTH = 70; // Minimum horizontal gap between obstacles to guarantee solvability
+        const BLOCK_HEIGHT = 20;
+
+        // --- Game Functions ---
+
+        // Function to create an obstacle element
+        function createObstacle(x, y, width, height) {
+            const obs = document.createElement('div');
+            obs.className = 'obstacle';
+            obs.style.cssText = `
+                position: absolute;
+                left: ${x}px;
+                top: ${y}px;
+                width: ${width}px;
+                height: ${height}px;
+                background-color: #663399; 
+                border-radius: 5px;
+                box-shadow: 0 5px 0 #4a2470;
+            `;
+            container.appendChild(obs);
+            return { element: obs, x: x, y: y, width: width, height: height };
+        }
+        
+        // --- NEW Obstacle Shape Functions ---
+
+        // Creates two blocks in an L-shape (a corner)
+        function createLShape(x, y, isRightSide) {
+            const size = 100;
+            const thickness = BLOCK_HEIGHT;
+            const newObstacles = [];
+
+            // Horizontal part
+            newObstacles.push(createObstacle(x, y, size, thickness));
+
+            // Vertical part
+            if (isRightSide) {
+                // Vertical piece on the right
+                newObstacles.push(createObstacle(x + size - thickness, y, thickness, size));
+            } else {
+                // Vertical piece on the left
+                newObstacles.push(createObstacle(x, y, thickness, size));
+            }
+            return newObstacles;
+        }
+
+        // Creates three blocks in a C-shape (a tunnel or pocket)
+        function createCShape(x, y, isOpenToTheRight) {
+            const width = 120;
+            const height = 100;
+            const thickness = BLOCK_HEIGHT;
+            const newObstacles = [];
+
+            // Top bar
+            newObstacles.push(createObstacle(x, y, width, thickness));
+            // Bottom bar
+            newObstacles.push(createObstacle(x, y + height - thickness, width, thickness));
+
+            // Back/Vertical bar
+            if (isOpenToTheRight) {
+                // Vertical piece on the left (creating opening to the right)
+                newObstacles.push(createObstacle(x, y + thickness, thickness, height - (2 * thickness)));
+            } else {
+                // Vertical piece on the right (creating opening to the left)
+                newObstacles.push(createObstacle(x + width - thickness, y + thickness, thickness, height - (2 * thickness)));
+            }
+            return newObstacles;
+        }
+
+        /**
+         * Generates a random set of obstacles for a level, prioritizing a guaranteed gap.
+         */
+        function generateRandomObstacleSet(level) {
+            const newObstacles = [];
+            const minSections = 2; // Separate the field into a few vertical sections
+            const maxSections = Math.min(5, level + 2);
+            const numSections = Math.floor(Math.random() * (maxSections - minSections + 1)) + minSections;
+
+            // Divide the vertical space (excluding top/bottom buffer) into sections
+            const availableHeight = CONTAINER_HEIGHT - 100 - GOAL_Y;
+            const sectionHeight = availableHeight / numSections;
+
+            for (let i = 0; i < numSections; i++) {
+                const yPos = GOAL_Y + 50 + (i * sectionHeight);
+                
+                // Determine the maximum available width for a single block/structure
+                const maxBlockWidth = CONTAINER_WIDTH - MIN_GAP_WIDTH;
+                
+                // Decide on the type of obstacle for this section
+                const obstacleType = Math.random();
+                
+                if (obstacleType < 0.25 && level >= 4) {
+                    // 25% chance for a complex L-shape on higher levels
+                    const isRightSide = Math.random() < 0.5;
+                    const x = isRightSide ? Math.random() * (CONTAINER_WIDTH - 100) : Math.random() * (CONTAINER_WIDTH - 100);
+                    newObstacles.push(...createLShape(x, yPos, isRightSide));
+
+                } else if (obstacleType < 0.45 && level >= 6) {
+                    // 20% chance for a C-shape on advanced levels
+                    const isOpenRight = Math.random() < 0.5;
+                    const x = isOpenRight ? Math.random() * (CONTAINER_WIDTH - 120) : Math.random() * (CONTAINER_WIDTH - 120);
+                    newObstacles.push(...createCShape(x, yPos, isOpenRight));
+
+                } else {
+                    // 55% chance for a standard gap obstacle
+                    const blockWidth = Math.random() * (maxBlockWidth - MIN_GAP_WIDTH) + MIN_GAP_WIDTH;
+                    
+                    // Randomly choose to place the block on the left or right side
+                    if (Math.random() < 0.5) {
+                        // Place block on the left
+                        newObstacles.push(createObstacle(0, yPos, blockWidth, BLOCK_HEIGHT));
+                        // The gap is guaranteed to be from blockWidth to CONTAINER_WIDTH
+                    } else {
+                        // Place block on the right
+                        const x = CONTAINER_WIDTH - blockWidth;
+                        newObstacles.push(createObstacle(x, yPos, blockWidth, BLOCK_HEIGHT));
+                        // The gap is guaranteed to be from 0 to x
+                    }
+                }
+            }
+            return newObstacles;
+        }
+
+        /**
+         * Sets up the game for the new level with random obstacles.
+         */
+        function setupLevel(level) {
+            // Remove old obstacles
+            obstacles.forEach(obs => obs.element.remove());
+            obstacles = [];
+
+            // Reset ball position and velocity
+            ballX = CONTAINER_WIDTH / 2 - 15;
+            ballY = CONTAINER_HEIGHT - 40;
+            ballVx = 0;
+            ballVy = 0;
+            ball.style.left = `${ballX}px`;
+            ball.style.top = `${ballY}px`;
+
+            // Update level display
+            levelDisplay.textContent = level;
+
+            // Generate new, random obstacles
+            obstacles = generateRandomObstacleSet(level);
+        }
+
+        // --- Input Handling (Unchanged) ---
+        function handleKeydown(e) {
+            keys[e.key] = true;
+            if (['ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                e.preventDefault();
+            }
+        }
+
+        function handleKeyup(e) {
+            keys[e.key] = false;
+        }
+
+        // --- Core Game Loop (Physics and Rendering - Unchanged but included for completeness) ---
+        function updateGame() {
+            // 1. --- Fan Movement ---
+            let fanTargetVx = 0;
+            if (keys['ArrowLeft']) {
+                fanTargetVx = -5;
+            } else if (keys['ArrowRight']) {
+                fanTargetVx = 5;
+            }
+
+            fanVx = fanVx * 0.7 + fanTargetVx * 0.3;
+            fanX += fanVx;
+
+            fanX = Math.max(0, Math.min(CONTAINER_WIDTH - FAN_WIDTH, fanX));
+            fan.style.left = `${fanX}px`;
+
+            // 2. --- Ball Physics ---
+
+            ballVy += G;
+
+            const fanCenter = fanX + FAN_WIDTH / 2;
+            const ballCenter = ballX + BALL_SIZE / 2;
+            const distanceX = Math.abs(ballCenter - fanCenter);
+
+            if (distanceX < FAN_RANGE) {
+                ballVy -= FAN_FORCE_Y;
+                fan.classList.add('fan-active');
+
+                const offset = ballCenter - fanCenter;
+                ballVx -= offset * (FAN_FORCE_X / FAN_RANGE); 
+
+            } else {
+                fan.classList.remove('fan-active');
+            }
+
+            ballX += ballVx;
+            ballY += ballVy;
+            ballVx *= HORIZONTAL_DAMPING;
+
+
+            // 3. --- Collision Detection ---
+
+            // Wall collision (left/right)
+            if (ballX < 0 || ballX + BALL_SIZE > CONTAINER_WIDTH) {
+                ballVx = -ballVx * BALL_DAMPING;
+                ballX = ballX < 0 ? 0 : CONTAINER_WIDTH - BALL_SIZE;
+            }
+
+            // Floor collision (bounce)
+            if (ballY + BALL_SIZE > CONTAINER_HEIGHT) {
+                ballVy = -ballVy * BALL_DAMPING;
+                ballY = CONTAINER_HEIGHT - BALL_SIZE;
+            }
+
+            // Obstacle collisions
+            obstacles.forEach(obs => {
+                if (ballX < obs.x + obs.width &&
+                    ballX + BALL_SIZE > obs.x &&
+                    ballY < obs.y + obs.height &&
+                    ballY + BALL_SIZE > obs.y) {
+
+                    const prevBallY = ballY - ballVy;
+
+                    // Top/Bottom Collision (Vertical)
+                    if (prevBallY + BALL_SIZE <= obs.y || prevBallY >= obs.y + obs.height) {
+                        ballVy = -ballVy * BALL_DAMPING;
+                        if (ballY < obs.y) {
+                            ballY = obs.y - BALL_SIZE - 1;
+                        } else {
+                            ballY = obs.y + obs.height + 1;
+                        }
+                    }
+                    // Left/Right Collision (Horizontal)
+                    else {
+                        ballVx = -ballVx * BALL_DAMPING;
+                        if (ballX < obs.x) {
+                            ballX = obs.x - BALL_SIZE - 1;
+                        } else {
+                            ballX = obs.x + obs.width + 1;
+                        }
+                    }
+                }
+            });
+
+
+            // 4. --- Goal Check ---
+            if (ballY < GOAL_Y) {
+                currentLevel++;
+                setupLevel(currentLevel);
+            }
+
+
+            // 5. --- Render ---
+            ball.style.left = `${ballX}px`;
+            ball.style.top = `${ballY}px`;
+
+            requestAnimationFrame(updateGame);
+        }
+
+        // --- Initialization ---
+
+        document.addEventListener('keydown', handleKeydown);
+        document.addEventListener('keyup', handleKeyup);
+
+        setupLevel(currentLevel);
+        
+        fanX = CONTAINER_WIDTH / 2 - FAN_WIDTH / 2;
+        fan.style.left = `${fanX}px`;
+        
+        updateGame();
+
+    </script>
+
+</body>
+</html>
