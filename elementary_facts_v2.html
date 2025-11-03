@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elementary Fact Builder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fb;
+        }
+        /* Custom styles for the input box and flash effects */
+        #answerInput {
+            transition: all 0.1s ease-in-out;
+        }
+        .correct-flash {
+            border-color: #10B981 !important; /* Green 500 */
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.7) !important;
+        }
+        .incorrect-flash {
+            border-color: #EF4444 !important; /* Red 500 */
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.7) !important;
+        }
+        /* Style for operation and number checkboxes */
+        .custom-checkbox {
+            -webkit-appearance: none;
+            appearance: none;
+            margin: 0;
+            width: 1.5em;
+            height: 1.5em;
+            border: 2px solid #ccc;
+            border-radius: 0.35em;
+            display: grid;
+            place-content: center;
+            cursor: pointer;
+            transition: all 0.1s;
+        }
+        .custom-checkbox:checked {
+            background-color: #4f46e5;
+            border-color: #4f46e5;
+        }
+        .custom-checkbox:checked::before {
+            content: "✓";
+            color: white;
+            font-size: 1.1em;
+            font-weight: 900;
+        }
+        /* Custom slider track/thumb styling */
+        input[type=range]::-webkit-slider-runnable-track {
+            background: #9ca3af;
+            height: 8px;
+            border-radius: 4px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            border: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #4f46e5;
+            margin-top: -6px;
+            box-shadow: 0 0 3px rgba(0,0,0,0.2);
+            cursor: grab;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <div id="appContainer" class="bg-white p-8 md:p-12 rounded-2xl shadow-2xl w-full max-w-xl transition-all duration-300">
+        <h1 class="text-3xl md:text-4xl font-extrabold text-pink-600 text-center mb-6">
+            <span class="inline-block transform -rotate-6 text-yellow-500 mr-2">🎯</span>
+            Elementary Fact Builder
+        </h1>
+        <p class="text-center text-gray-500 mb-8">
+            Select the number ranges for your targeted Addition, Subtraction, Multiplication, and Division practice.
+        </p>
+
+        <div id="screenContainer">
+            </div>
+    </div>
+
+    <script>
+        // --- STATE & CONFIGURATION ---
+        let problemCount = 20; // Default number of problems
+        
+        // Separate number pools
+        let selectedAddends = Array.from({ length: 13 }, (_, i) => i); // 0-12 for + / -
+        let selectedFactors = Array.from({ length: 13 }, (_, i) => i); // 0-12 for * / ÷
+        
+        let selectedOps = ['+', '-', '*', '/']; // Default All four operations
+        let problems = []; // Array to hold pre-generated problems
+        let currentProblemIndex = 0; // Index of the problem currently being displayed
+        let score = 0;
+        let attempted = 0;
+        let gameState = 'SETUP'; // SETUP | GAME | RESULTS
+
+        // TIMER & MULTIPLE CHOICE STATE
+        const GAME_DURATION = 60; // seconds
+        let timer = 0;
+        let gameInterval = null;
+        let isMultipleChoice = false; 
+
+        // TIMING & REVIEW STATE
+        let problemStartTime = 0; // Records time when a problem is displayed
+        let slowFacts = new Set(); // Stores problem strings that took too long
+        const SLOW_THRESHOLD = 3000; // 3 seconds (in milliseconds)
+
+        // --- NEW: COOLDOWN STATE ---
+        let isCoolingDown = false;
+        const COOLDOWN_TIME = 2500; // 300 = 3 seconds
+        // --- END NEW ---
+
+        const NUMBER_RANGE = 12; // Max number for selection (0-12)
+        const screenContainer = document.getElementById('screenContainer');
+        
+        // --- SOUND EFFECTS ---
+        const correctSynth = new Tone.PolySynth(Tone.Synth, { oscillator: { type: "sine" } }).toDestination();
+        const incorrectSynth = new Tone.NoiseSynth({
+            noise: { type: "pink" },
+            envelope: { attack: 0.005, decay: 0.1, sustain: 0, release: 0.1 }
+        }).toDestination();
+        const successSynth = new Tone.PolySynth(Tone.AMSynth).toDestination();
+
+        function playCorrectSound() { correctSynth.triggerAttackRelease(["C5", "E5"], "8n"); }
+        function playIncorrectSound() { incorrectSynth.triggerAttackRelease("16n"); }
+        function playSuccessSound() { successSynth.triggerAttackRelease(["C4", "E4", "G4"], "0.5"); }
+
+        // --- UTILITY FUNCTIONS ---
+
+        /** Shuffles an array in place using the Fisher-Yates algorithm. */
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+        
+        /** Generates an array of four answer choices, including the correct one. */
+        function generateChoices(correctAnswer) {
+            const choices = new Set();
+            choices.add(correctAnswer);
+
+            while (choices.size < 4) {
+                let distractor;
+                const deviation = Math.floor(Math.random() * 9) - 4; // -4 to 4 range
+                distractor = correctAnswer + deviation;
+
+                if (distractor >= 0 && !choices.has(distractor)) {
+                    if (Math.abs(distractor - correctAnswer) > 0 && Math.abs(distractor - correctAnswer) < 10) {
+                         choices.add(distractor);
+                    }
+                }
+                
+                if (choices.size < 4 && correctAnswer <= 5) {
+                     distractor = Math.floor(Math.random() * 11); // 0-10
+                     if (distractor >= 0 && !choices.has(distractor)) choices.add(distractor);
+                }
+            }
+
+            const choicesArray = Array.from(choices);
+            shuffleArray(choicesArray);
+
+            return choicesArray;
+        }
+
+        // Timer Display Utility
+        function updateTimerDisplay() {
+            const timerDisplay = document.getElementById('timerDisplay');
+            if (timerDisplay) {
+                timerDisplay.textContent = `${timer}s`;
+                if (timer <= 10) {
+                    timerDisplay.classList.add('text-red-700', 'animate-pulse');
+                } else {
+                    timerDisplay.classList.remove('text-red-700', 'animate-pulse');
+                }
+            }
+        }
+
+        // Simple modal implementation (to replace alert)
+        function showModal(title, message, callback) {
+            const modalHTML = `
+                <div id="customModal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 p-4">
+                    <div class="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full">
+                        <h3 class="text-xl font-bold text-red-600 mb-4">${title}</h3>
+                        <p class="text-gray-700 mb-6">${message}</p>
+                        <div class="flex justify-end">
+                            <button onclick="document.getElementById('customModal').remove(); ${callback ? 'callback()' : ''}"
+                                    class="py-2 px-4 bg-indigo-500 hover:bg-indigo-600 text-white font-semibold rounded-lg transition duration-150">
+                                OK
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+        }
+
+        // --- PROBLEM GENERATION LOGIC ---
+
+        /**
+         * Generates all possible math facts based on selected number pools.
+         */
+        function generateAllPossibleFacts(addends, factors, ops) {
+            const allFacts = new Set();
+            
+            // 1. Generate Addition Facts (A + B = C)
+            if (ops.includes('+')) {
+                for (let i = 0; i < addends.length; i++) {
+                    const A = addends[i];
+                    for (let j = 0; j < addends.length; j++) {
+                        const B = addends[j];
+                        const C = A + B;
+                        allFacts.add(JSON.stringify({ problemText: `${A} + ${B} =`, answer: C, op: '+' }));
+                    }
+                }
+            }
+            
+            // 2. Generate Subtraction Facts (C - A = B and C - B = A)
+            if (ops.includes('-')) {
+                for (let i = 0; i < addends.length; i++) {
+                    const B = addends[i];
+                    for (let j = 0; j < addends.length; j++) {
+                        const A = addends[j];
+                        const C = A + B; // The minuend (C) is the sum
+                        
+                        allFacts.add(JSON.stringify({ problemText: `${C} - ${A} =`, answer: B, op: '-' }));
+                        
+                        if (A !== B) {
+                            allFacts.add(JSON.stringify({ problemText: `${C} - ${B} =`, answer: A, op: '-' }));
+                        }
+                    }
+                }
+            }
+            
+            // 3. Generate Multiplication Facts (A * B = C)
+            if (ops.includes('*')) {
+                for (let i = 0; i < factors.length; i++) {
+                    const A = factors[i];
+                    for (let j = 0; j < factors.length; j++) {
+                        const B = factors[j];
+                        const C = A * B;
+                        allFacts.add(JSON.stringify({ problemText: `${A} × ${B} =`, answer: C, op: '*' }));
+                    }
+                }
+            }
+            
+            // 4. Generate Division Facts (C / A = B and C / B = A)
+            if (ops.includes('/')) {
+                for (let i = 0; i < factors.length; i++) {
+                    const B = factors[i];
+                    for (let j = 0; j < factors.length; j++) {
+                        const A = factors[j];
+                        const C = A * B; // The dividend (C) is the product
+                        
+                        if (A !== 0) {
+                            allFacts.add(JSON.stringify({ problemText: `${C} ÷ ${A} =`, answer: B, op: '/' }));
+                        }
+                        
+                        if (B !== 0 && A !== B) {
+                            allFacts.add(JSON.stringify({ problemText: `${C} ÷ ${B} =`, answer: A, op: '/' }));
+                        }
+                    }
+                }
+            }
+
+            let factArray = Array.from(allFacts).map(json => JSON.parse(json));
+            shuffleArray(factArray);
+            return factArray;
+        }
+
+        /**
+         * The primary start function called from the setup screen.
+         */
+        window.startPractice = function() {
+            // Check if A/S selected but no Addends chosen
+            if ((selectedOps.includes('+') || selectedOps.includes('-')) && selectedAddends.length === 0) {
+                showModal('Selection Required', 'You selected Addition/Subtraction but did not select any Addends.', () => {});
+                return;
+            }
+            // Check if M/D selected but no Factors chosen
+            if ((selectedOps.includes('*') || selectedOps.includes('/')) && selectedFactors.length === 0) {
+                showModal('Selection Required', 'You selected Multiplication/Division but did not select any Factors.', () => {});
+                return;
+            }
+            if (selectedOps.length === 0) {
+                showModal('Selection Required', 'Please select at least one Operation to practice.', () => {});
+                return;
+            }
+
+            // Generate all possible facts based on the current selection
+            let allFacts = generateAllPossibleFacts(selectedAddends, selectedFactors, selectedOps);
+            
+            if (allFacts.length === 0) {
+                 showModal('No Problems Generated', 'Your current selections (operations and numbers) resulted in zero possible problems. Please adjust your selections.', () => {});
+                 return;
+            }
+
+            // Trim and loop facts array to the desired problem count
+            problems = allFacts.slice(0, problemCount);
+            if (allFacts.length < problemCount) {
+                // If fewer facts exist than requested, loop them to fill the count
+                for (let i = allFacts.length; i < problemCount; i++) {
+                    problems.push(allFacts[i % allFacts.length]);
+                }
+                shuffleArray(problems);
+            }
+
+            // --- STATE RESETS ---
+            currentProblemIndex = 0;
+            score = 0;
+            attempted = 0;
+            problemStartTime = 0; 
+            slowFacts = new Set(); 
+            isCoolingDown = false; // NEW: Reset cooldown state
+            
+            if (gameInterval) clearInterval(gameInterval);
+            timer = GAME_DURATION;
+            
+            gameState = 'GAME';
+            renderGame();
+            displayProblem(currentProblemIndex); // Display the first problem
+
+            gameInterval = setInterval(() => {
+                timer--;
+                updateTimerDisplay();
+                if (timer <= 0) {
+                    clearInterval(gameInterval);
+                    renderResults();
+                }
+            }, 1000);
+        }
+
+        // --- UI UPDATE HANDLERS ---
+
+        /** Updates the problem count state from the slider. */
+        window.updateProblemCount = function(value) {
+            problemCount = parseInt(value, 10);
+            document.getElementById('problemCountDisplay').textContent = problemCount;
+        }
+        
+        /** Function to toggle the multiple choice state from the UI checkbox. */
+        window.toggleMultipleChoice = function(checked) {
+            isMultipleChoice = checked;
+        }
+
+        /** Updates the selected operations state from checkboxes. */
+        window.updateSelectedOps = function(op, checked) {
+            if (checked) {
+                if (!selectedOps.includes(op)) selectedOps.push(op);
+            } else {
+                selectedOps = selectedOps.filter(o => o !== op);
+            }
+        }
+
+        // --- ADDITION/SUBTRACTION CONTROLS ---
+
+        /** Updates the selected addends state from checkboxes. */
+        window.updateSelectedAddends = function(number, checked) {
+            const num = parseInt(number, 10);
+            if (checked) {
+                if (!selectedAddends.includes(num)) selectedAddends.push(num);
+            } else {
+                selectedAddends = selectedAddends.filter(n => n !== num);
+            }
+            selectedAddends.sort((a, b) => a - b);
+        }
+
+        /** Checks/unchecks all addend boxes. */
+        window.toggleAllAddends = function(checked) {
+            selectedAddends = [];
+            for (let i = 0; i <= NUMBER_RANGE; i++) {
+                const checkbox = document.getElementById(`addend-${i}`);
+                checkbox.checked = checked;
+                if (checked) {
+                    selectedAddends.push(i);
+                }
+            }
+            selectedAddends.sort((a, b) => a - b);
+        }
+        
+        // --- MULTIPLICATION/DIVISION CONTROLS ---
+
+        /** Updates the selected factors state from checkboxes. */
+        window.updateSelectedFactors = function(number, checked) {
+            const num = parseInt(number, 10);
+            if (checked) {
+                if (!selectedFactors.includes(num)) selectedFactors.push(num);
+            } else {
+                selectedFactors = selectedFactors.filter(n => n !== num);
+            }
+            selectedFactors.sort((a, b) => a - b);
+        }
+
+        /** Checks/unchecks all factor boxes. */
+        window.toggleAllFactors = function(checked) {
+            selectedFactors = [];
+            for (let i = 0; i <= NUMBER_RANGE; i++) {
+                const checkbox = document.getElementById(`factor-${i}`);
+                checkbox.checked = checked;
+                if (checked) {
+                    selectedFactors.push(i);
+                }
+            }
+            selectedFactors.sort((a, b) => a - b);
+        }
+
+
+        // --- UI RENDERING FUNCTIONS ---
+
+        /** Generates HTML for a set of number checkboxes. */
+        function generateNumberCheckboxes(prefix, currentSelection) {
+            let boxes = '';
+            for (let i = 0; i <= NUMBER_RANGE; i++) {
+                boxes += `
+                    <label class="flex items-center space-x-1 p-2 bg-white rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50 justify-center">
+                        <input type="checkbox" id="${prefix}-${i}" 
+                               class="custom-checkbox"
+                               ${currentSelection.includes(i) ? 'checked' : ''} 
+                               onchange="updateSelected${prefix === 'addend' ? 'Addends' : 'Factors'}(${i}, this.checked)">
+                        <span class="text-lg font-bold text-gray-700">${i}</span>
+                    </label>
+                `;
+            }
+            return boxes;
+        }
+
+        /** Renders the setup screen. */
+        function renderSetupScreen() {
+            // Addend Checkboxes (0-12)
+            const addendBoxes = generateNumberCheckboxes('addend', selectedAddends);
+            // Factor Checkboxes (0-12)
+            const factorBoxes = generateNumberCheckboxes('factor', selectedFactors);
+
+            // Operation Checkboxes
+            const ops = [
+                { op: '+', label: 'Addition', color: 'green' },
+                { op: '-', label: 'Subtraction', color: 'blue' },
+                { op: '*', label: 'Multiplication', color: 'purple' },
+                { op: '/', label: 'Division', color: 'orange' }
+            ];
+            let opBoxes = ops.map(item => `
+                <label class="flex items-center space-x-2 bg-white p-3 rounded-xl border border-gray-200 cursor-pointer hover:bg-gray-50 shadow-sm w-full">
+                    <input type="checkbox" id="op-${item.op}"
+                           class="custom-checkbox"
+                           ${selectedOps.includes(item.op) ? 'checked' : ''}
+                           onchange="updateSelectedOps('${item.op}', this.checked)">
+                    <span class="text-base md:text-xl font-extrabold text-${item.color}-600">${item.op === '*' ? '×' : (item.op === '/' ? '÷' : item.op)} ${item.label}</span>
+                </label>
+            `).join('');
+
+            screenContainer.innerHTML = `
+                <div class="p-4 rounded-xl bg-indigo-50 border border-indigo-200 mb-6 shadow-md">
+                    <label class="text-lg font-extrabold text-gray-800 mb-3 block">
+                        Number of Problems: 
+                        <span id="problemCountDisplay" class="text-indigo-600">${problemCount}</span>
+                    </label>
+                    <input type="range" id="problemCountSlider" min="10" max="50" step="10" 
+                           value="${problemCount}" 
+                           oninput="updateProblemCount(this.value)"
+                           class="w-full h-2 bg-indigo-200 rounded-lg appearance-none cursor-pointer">
+                    <div class="flex justify-between text-sm text-gray-600 mt-1">
+                        <span>10</span>
+                        <span>50</span>
+                    </div>
+                </div>
+
+                <div class="p-4 rounded-xl bg-yellow-50 border border-yellow-200 mb-6 shadow-md">
+                    <label class="text-lg font-extrabold text-gray-800 mb-3 block">Select Operations:</label>
+                    <div class="grid grid-cols-2 gap-3 justify-around">
+                        ${opBoxes}
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between p-4 mb-6 rounded-xl bg-gray-100 shadow-inner">
+                    <label for="mc-toggle" class="text-lg font-semibold text-gray-700">Use Multiple Choice (Easier Input)?</label>
+                    <input type="checkbox" id="mc-toggle" class="custom-checkbox" ${isMultipleChoice ? 'checked' : ''} onchange="toggleMultipleChoice(this.checked)">
+                </div>
+
+                <div class="p-4 rounded-xl bg-teal-50 border border-teal-200 mb-6 shadow-md">
+                    <div class="flex justify-between items-center mb-3">
+                        <label class="text-lg font-extrabold text-gray-800">Select Addends (for + and -):</label>
+                        <button onclick="toggleAllAddends(!document.getElementById('addend-0').checked)" 
+                                class="text-sm px-3 py-1 bg-teal-500 hover:bg-teal-600 text-white font-semibold rounded-lg transition duration-150 shadow-sm">
+                            Toggle All
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-7 gap-1 md:gap-2 text-center">
+                        ${addendBoxes}
+                    </div>
+                    <p class="text-xs text-gray-600 mt-2 italic">These numbers determine A and B in A+B=C, and C-A=B.</p>
+                </div>
+                
+                <div class="p-4 rounded-xl bg-pink-50 border border-pink-200 mb-8 shadow-md">
+                    <div class="flex justify-between items-center mb-3">
+                        <label class="text-lg font-extrabold text-gray-800">Select Factors (for × and ÷):</label>
+                        <button onclick="toggleAllFactors(!document.getElementById('factor-0').checked)" 
+                                class="text-sm px-3 py-1 bg-pink-500 hover:bg-pink-600 text-white font-semibold rounded-lg transition duration-150 shadow-sm">
+                            Toggle All
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-7 gap-1 md:gap-2 text-center">
+                        ${factorBoxes}
+                    </div>
+                    <p class="text-xs text-gray-600 mt-2 italic">These numbers determine A and B in A×B=C, and C÷A=B.</p>
+                </div>
+
+                <button onclick="startPractice()"
+                        class="w-full py-4 bg-indigo-500 hover:bg-indigo-600 text-white font-extrabold text-xl rounded-xl shadow-lg transition duration-150 ease-in-out transform hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-indigo-300">
+                    Start Practice
+                </button>
+            `;
+            gameState = 'SETUP';
+        }
+
+        /** Displays the current problem on the screen and starts the timer for it. */
+        function displayProblem(index) {
+            if (timer <= 0) return;
+
+            const problem = problems[index % problems.length];
+            
+            document.getElementById('currentProblemNumber').textContent = (index % problems.length) + 1; 
+            document.getElementById('problemText').textContent = problem.problemText;
+
+            // --- NEW: Reset helper text in case it was a penalty message ---
+            const helperTextEl = document.getElementById('helperText');
+            if (helperTextEl) {
+                if (isMultipleChoice) {
+                    helperTextEl.innerHTML = 'Click the correct answer!';
+                } else {
+                    helperTextEl.innerHTML = 'Correct answers submit automatically. Press ENTER to check an incorrect answer.';
+                }
+                helperTextEl.classList.remove('text-red-500', 'font-bold');
+                helperTextEl.classList.add('text-gray-500');
+            }
+            // --- END NEW ---
+            
+            // Record start time for timing this specific problem
+            problemStartTime = performance.now();
+
+            if (isMultipleChoice) {
+                const choices = generateChoices(problem.answer);
+                const choicesContainer = document.getElementById('choicesContainer');
+                let buttonsHTML = '';
+                choices.forEach(choice => {
+                    buttonsHTML += `
+                        <button onclick="checkAnswer(${choice})"
+                                class="py-4 text-3xl font-bold bg-pink-500 hover:bg-pink-600 text-white rounded-xl shadow-lg transition duration-150 ease-in-out transform hover:scale-105">
+                            ${choice}
+                        </button>
+                    `;
+                });
+                choicesContainer.innerHTML = buttonsHTML;
+            } else {
+                const input = document.getElementById('answerInput');
+                if (input) {
+                    input.value = '';
+                    input.focus();
+                }
+            }
+        }
+
+        /** Moves to the next problem index and calls displayProblem. */
+        function nextProblem() {
+            if (timer <= 0) return;
+            
+            currentProblemIndex++;
+
+            // Check if the goal number of problems has been completed
+            if (currentProblemIndex >= problems.length) {
+                if (gameInterval) clearInterval(gameInterval);
+                gameInterval = null;
+                renderResults(); // End the game immediately
+                return; 
+            }
+
+            displayProblem(currentProblemIndex);
+        }
+
+
+        /** Renders the main game screen. */
+        function renderGame() {
+            const total = problems.length;
+
+            let inputElement;
+            let helperText;
+
+            if (isMultipleChoice) {
+                inputElement = `<div id="choicesContainer" class="grid grid-cols-2 gap-4"></div>`;
+                // MODIFIED: Added ID to helper text
+                helperText = '<p id="helperText" class="text-sm text-gray-500 mt-2 text-center">Click the correct answer!</p>';
+            } else {
+                inputElement = `
+                    <input type="number" id="answerInput"
+                           class="w-full p-4 text-center text-4xl font-extrabold text-gray-800 border-4 border-pink-300 rounded-xl focus:ring-4 focus:ring-pink-400 focus:border-pink-500 transition-all duration-200"
+                           placeholder="?" autofocus>
+                `;
+                // MODIFIED: Added ID to helper text
+                helperText = '<p id="helperText" class="text-sm text-gray-500 mt-2 text-center">Correct answers submit automatically. Press ENTER to check an incorrect answer.</p>';
+            }
+
+            screenContainer.innerHTML = `
+                <div class="flex justify-between items-center mb-6 text-lg font-medium text-gray-600">
+                    <div>Problem: <span id="currentProblemNumber" class="font-bold text-pink-700">${currentProblemIndex + 1}</span> / ${total}</div>
+                </div>
+
+                <div class="flex justify-between items-center mb-8 p-4 bg-gray-100 rounded-lg shadow-inner">
+                    <div id="scoreDisplay" class="text-xl md:text-2xl font-bold text-green-600">Score: 0</div>
+                    <div id="timerDisplay" class="text-2xl md:text-3xl font-extrabold text-red-500">${GAME_DURATION}s</div>
+                    <div id="attemptsDisplay" class="text-xl md:text-2xl font-extrabold text-gray-700">Attempted: 0</div>
+                </div>
+
+                <div class="flex flex-col items-center justify-center h-40 bg-pink-50 rounded-xl shadow-md p-6 mb-8">
+                    <p id="problemText" class="text-6xl font-extrabold text-pink-800 mb-4 select-none">
+                        </p>
+                </div>
+
+                ${inputElement}
+                
+                ${helperText}
+
+                <button onclick="endGameEarly()" class="mt-6 w-full py-2 bg-red-400 hover:bg-red-500 text-white font-bold rounded-xl transition duration-150 shadow-md">
+                    End Practice
+                </button>
+            `;
+            setupGameListeners();
+        }
+
+        /** Renders the results screen. */
+        function renderResults() {
+            if (gameInterval) clearInterval(gameInterval);
+            gameInterval = null;
+            isCoolingDown = false; // NEW: Ensure cooldown is cleared on game end
+
+            const totalProblems = problems.length;
+            const accuracy = attempted > 0 ? ((score / attempted) * 100).toFixed(0) : 0;
+            
+            // Check if the practice ended because all problems were completed with time remaining
+            const completedEarly = (currentProblemIndex >= totalProblems) && (timer > 0);
+
+            if (score > 0 && accuracy >= 80) {
+                playSuccessSound();
+            }
+            
+            const earlyCompletionMessage = completedEarly ? `
+                <div class="p-6 bg-yellow-50 border border-yellow-200 rounded-xl shadow-md mb-8">
+                    <h3 class="text-xl font-extrabold text-yellow-700 mb-2">Goal Achieved in Time! ⚡</h3>
+                    <p class="text-gray-700">You completed all ${totalProblems} problems with ${timer} seconds remaining. Consider increasing the Number of Problems next time!</p>
+                </div>
+            ` : '';
+
+            const slowFactsList = Array.from(slowFacts).map(fact => 
+                `<li class="py-1 px-3 bg-red-100 rounded-lg text-red-800 font-semibold text-lg">${fact}</li>`
+            ).join('');
+            
+            const slowFactsSection = slowFacts.size > 0 ? `
+                <div class="p-6 bg-red-50 border border-red-200 rounded-xl shadow-md mb-8">
+                    <h3 class="text-xl font-extrabold text-red-700 mb-4">Facts to Review (Took > ${SLOW_THRESHOLD / 1000}s)</h3>
+                    <ul class="space-y-2 grid grid-cols-2 gap-3">
+                        ${slowFactsList}
+                    </ul>
+                </div>
+            ` : `
+                <div class="p-6 bg-green-50 border border-green-200 rounded-xl shadow-md mb-8">
+                    <h3 class="text-xl font-extrabold text-green-700">Excellent pace! No facts flagged for slow recall.</h3>
+                    <p class="text-sm text-green-600 mt-2">All correct answers were provided in less than ${SLOW_THRESHOLD / 1000} seconds.</p>
+                </div>
+            `;
+
+
+            screenContainer.innerHTML = `
+                <h2 class="text-3xl font-bold text-center mb-6 ${accuracy >= 80 ? 'text-green-600' : 'text-pink-600'}">
+                    ${accuracy >= 80 ? 'GREAT WORK! ⭐' : 'Time to review those facts!'}
+                </h2>
+                
+                ${earlyCompletionMessage}
+
+                <div class="p-6 bg-gray-100 rounded-xl shadow-inner mb-8">
+                    <p class="text-xl font-bold text-green-600 mb-2">Correct Answers: ${score}</p>
+                    <p class="text-xl font-bold text-gray-800 mb-2">Total Attempted: ${attempted}</p>
+                    <hr class="my-4 border-gray-300">
+                    <p class="text-2xl font-extrabold text-indigo-700">Accuracy: ${accuracy}%</p>
+                </div>
+                
+                ${slowFactsSection}
+
+                <div class="text-center mb-6">
+                    <p class="text-lg text-gray-700">Practice complete!</p>
+                </div>
+
+                <div class="flex space-x-4">
+                    <button onclick="startPractice()"
+                            class="w-1/2 py-3 bg-pink-500 hover:bg-pink-600 text-white font-bold rounded-xl shadow-lg transition duration-150 focus:outline-none focus:ring-4 focus:ring-pink-300">
+                        Repeat This Practice
+                    </button>
+
+                    <button onclick="renderSetupScreen()"
+                            class="w-1/2 py-3 bg-indigo-500 hover:bg-indigo-600 text-white font-bold rounded-xl shadow-lg transition duration-150 focus:outline-none focus:ring-4 focus:ring-indigo-300">
+                        New Fact Selection
+                    </button>
+                </div>
+            `;
+            gameState = 'RESULTS';
+        }
+
+        /** Sets up input event listeners (only for non-MC mode). */
+        function setupGameListeners() {
+            if (isMultipleChoice) return;
+
+            const input = document.getElementById('answerInput');
+            if (input) {
+                // Auto-submit on correct answer + length match
+                input.addEventListener('input', (e) => {
+                    // MODIFIED: Added isCoolingDown check
+                    if (gameState !== 'GAME' || timer <= 0 || isCoolingDown) return;
+                    
+                    const userAnswer = e.target.value;
+                    const correctAnswer = problems[currentProblemIndex % problems.length]?.answer.toString();
+
+                    if (userAnswer.length === correctAnswer.length && parseInt(userAnswer, 10) === problems[currentProblemIndex % problems.length].answer) {
+                        checkAnswer(userAnswer);
+                    }
+                });
+
+                // Explicit check/feedback on Enter press
+                input.addEventListener('keydown', (e) => {
+                    // NEW: Added isCoolingDown check
+                    if (isCoolingDown) return; 
+                    
+                    if (e.key === 'Enter') {
+                        checkAnswer(input.value);
+                    }
+                });
+            }
+        }
+
+        /** Checks the user's answer. */
+        window.checkAnswer = function(inputValue) {
+            // MODIFIED: Added isCoolingDown check
+            if (gameState !== 'GAME' || timer <= 0 || isCoolingDown) return;
+
+            const userAnswer = parseInt(inputValue, 10);
+            const currentProblem = problems[currentProblemIndex % problems.length];
+            const isCorrect = userAnswer === currentProblem.answer;
+
+            attempted++;
+            document.getElementById('attemptsDisplay').textContent = `Attempted: ${attempted}`;
+
+            const input = document.getElementById('answerInput'); // This is null in MC mode
+            
+            if (isCorrect) {
+                const endTime = performance.now();
+                const timeTaken = endTime - problemStartTime; // Calculate time taken
+
+                // Check if the problem was solved correctly but slowly
+                if (timeTaken > SLOW_THRESHOLD) {
+                    slowFacts.add(currentProblem.problemText);
+                }
+
+                playCorrectSound();
+                score++;
+                document.getElementById('scoreDisplay').textContent = `Score: ${score}`;
+
+                if (input && !isMultipleChoice) {
+                    input.classList.add('correct-flash');
+                    setTimeout(() => input.classList.remove('correct-flash'), 200);
+                }
+                
+                // Move to the next problem index and display it
+                setTimeout(() => nextProblem(), isMultipleChoice ? 200 : 0);
+            } else {
+                // --- NEW PENALTY LOGIC START ---
+                playIncorrectSound();
+                isCoolingDown = true;
+
+                // Get UI elements
+                const problemTextEl = document.getElementById('problemText');
+                const helperTextEl = document.getElementById('helperText');
+
+                // Show the correct answer
+                problemTextEl.innerHTML = `<span class="text-5xl font-extrabold text-green-600">${currentProblem.problemText} ${currentProblem.answer}</span>`;
+                
+                // Show a penalty message
+                if(helperTextEl) {
+                    helperTextEl.innerHTML = `<span class="text-red-500 font-bold">❌ NOPE! Wait ${COOLDOWN_TIME / 1000} seconds...</span>`;
+                }
+
+                // Disable all inputs
+                if (isMultipleChoice) {
+                    const choicesContainer = document.getElementById('choicesContainer');
+                    const choiceButtons = choicesContainer.querySelectorAll('button');
+                    choiceButtons.forEach(btn => btn.disabled = true);
+                } else {
+                    if (input) {
+                        input.disabled = true;
+                        input.classList.add('incorrect-flash'); // Add persistent flash
+                    }
+                }
+
+                // Set the cooldown timer
+                setTimeout(() => {
+                    // End of cooldown
+                    isCoolingDown = false;
+                    
+                    if (!isMultipleChoice && input) {
+                         input.classList.remove('incorrect-flash');
+                         input.disabled = false;
+                    }
+
+                    // Generate new problem (which re-renders buttons/helper text)
+                    if (gameState === 'GAME' && timer > 0) { // Only load next problem if game is still running
+                        nextProblem();
+                    }
+                }, COOLDOWN_TIME);
+                // --- NEW PENALTY LOGIC END ---
+            }
+        }
+
+        /** Exits the practice session early. */
+        window.endGameEarly = function() {
+            if (gameInterval) clearInterval(gameInterval);
+            renderResults();
+        }
+
+        // --- INITIALIZATION ---
+        window.onload = renderSetupScreen;
+
+    </script>
+</body>
+</html>
