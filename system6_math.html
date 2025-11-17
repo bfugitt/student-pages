@@ -1,0 +1,335 @@
+<!-- ... existing head ... -->
+    <style>
+/* ... existing styles ... */
+        .weight-cell {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #fff;
+            border: 2px solid #000;
+            padding: 5px;
+        }
+
+        .weight-cell label {
+/* ... existing styles ... */
+            font-weight: bold;
+        }
+
+        /* This rule was modified from .weight-cell input */
+        .weight-value-display {
+/* ... existing styles ... */
+            width: 30px; /* Made smaller to fit two */
+            font-size: 22px;
+            border: 1px solid #000;
+            background: #e0e0e0; /* Read-only look */
+        }
+
+        /* NEW CSS for the split weight display */
+        .weight-pair-display {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: space-around;
+            gap: 5px;
+            font-size: 20px;
+            margin-top: 4px;
+        }
+        
+        /* Style for the "+/-" and "x/" labels */
+        .weight-pair-display > span:first-child,
+        .weight-pair-display > span:nth-child(3) {
+            font-weight: bold;
+            color: #555;
+            font-size: 18px;
+            width: 25px;
+            text-align: center;
+        }
+
+
+    </style>
+</head>
+<body>
+<!-- ... existing body HTML ... -->
+    <script>
+// ... existing DOM Elements ...
+
+        // Game State
+        let score = 0;
+        // !! --- DATA STRUCTURE CHANGE --- !!
+        // operandWeights is now a nested object
+        let operandWeights = {}; // e.g., { addSub: {2: 5...}, mulDiv: {2: 5...} }
+        let problemWeights = {}; // e.g., {"8x7": 5, "42÷6": 8, "5+3": 1}
+// ... existing Game State ...
+
+        // Constants
+// ... existing Constants ...
+
+        // --- Initialization ---
+
+        // NEW helper function to get default weights
+        function getDefaultOperandWeights() {
+            const weights = { addSub: {}, mulDiv: {} };
+            for (let i = MIN_NUM; i <= MAX_NUM; i++) {
+                weights.addSub[i] = DEFAULT_WEIGHT;
+                weights.mulDiv[i] = DEFAULT_WEIGHT;
+            }
+            return weights;
+        }
+
+        function init() {
+// ... existing init ...
+        }
+
+        function loadFromStorage() {
+            const savedScore = localStorage.getItem('mathFactsScore');
+            const savedOperandWeights = localStorage.getItem('mathFactsOperandWeights');
+            const savedProblemWeights = localStorage.getItem('mathFactsProblemWeights');
+
+            score = savedScore ? parseInt(savedScore, 10) : 0;
+            problemWeights = savedProblemWeights ? JSON.parse(savedProblemWeights) : {};
+            
+            // !! --- LOGIC CHANGE --- !!
+            // Check for the new, nested structure. If not found, use default.
+            let saved = savedOperandWeights ? JSON.parse(savedOperandWeights) : null;
+            if (saved && saved.addSub && saved.mulDiv) {
+                operandWeights = saved;
+            } else {
+                // Either no save or old format; create new default
+                operandWeights = getDefaultOperandWeights();
+            }
+            
+            updateScoreDisplay();
+        }
+
+        function populateWeightTable() {
+            weightTableContainer.innerHTML = ''; // Clear existing table
+            for (let i = MIN_NUM; i <= MAX_NUM; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'weight-cell';
+                
+                const label = document.createElement('label');
+                label.textContent = i;
+                
+                // !! --- UI CHANGE --- !!
+                // Create the new split display
+                const pairDisplay = document.createElement('div');
+                pairDisplay.className = 'weight-pair-display';
+                
+                // Add/Sub display
+                const addSubLabel = document.createElement('span');
+                addSubLabel.textContent = '+/−';
+                const addSubValue = document.createElement('span');
+                addSubValue.id = `weight-display-addSub-${i}`;
+                addSubValue.className = 'weight-value-display';
+                addSubValue.textContent = operandWeights.addSub[i];
+                
+                // Mul/Div display
+                const mulDivLabel = document.createElement('span');
+                mulDivLabel.textContent = '×÷';
+                const mulDivValue = document.createElement('span');
+                mulDivValue.id = `weight-display-mulDiv-${i}`;
+                mulDivValue.className = 'weight-value-display';
+                mulDivValue.textContent = operandWeights.mulDiv[i];
+                
+                pairDisplay.appendChild(addSubLabel);
+                pairDisplay.appendChild(addSubValue);
+                pairDisplay.appendChild(mulDivLabel);
+                pairDisplay.appendChild(mulDivValue);
+
+                cell.appendChild(label);
+                cell.appendChild(pairDisplay);
+                weightTableContainer.appendChild(cell);
+            }
+        }
+
+        function addEventListeners() {
+// ... existing addEventListeners ...
+        }
+
+        // --- Game Loop ---
+
+        function nextProblem() {
+// ... existing nextProblem code ...
+            
+            // 2. Add "NEW" problem tokens
+            // The number of "NEW" tokens is based on the sum of *all* operand weights
+            const addSubTotalWeight = Object.values(operandWeights.addSub).reduce((a, b) => a + b, 0);
+            const mulDivTotalWeight = Object.values(operandWeights.mulDiv).reduce((a, b) => a + b, 0);
+            const newProblemWeight = addSubTotalWeight + mulDivTotalWeight; // Total sum
+            
+            for (let i = 0; i < newProblemWeight; i++) {
+                problemPool.push("NEW");
+            }
+
+// ... existing nextProblem code ...
+            
+            // Start timer
+            currentProblem.startTime = Date.now();
+            startTimerDisplay();
+        }
+
+        function generateNewProblem() {
+            const operators = ['+', '-', 'x', '÷'];
+            const operator = operators[Math.floor(Math.random() * operators.length)];
+            
+            // !! --- LOGIC CHANGE --- !!
+            // Determine which weight pool to use
+            const weightType = (operator === '+' || operator === '-') ? 'addSub' : 'mulDiv';
+            
+            let op1 = pickWeightedOperand(weightType);
+            let op2 = pickWeightedOperand(weightType);
+            let answer;
+
+            switch (operator) {
+                case '+':
+// ... existing switch case ...
+                    break;
+                case '÷':
+                    // For division, generate product first to ensure whole numbers
+                    const quotient = pickWeightedOperand(weightType); // Will use 'mulDiv'
+                    op1 = op2 * quotient; // op1 is now the dividend
+                    answer = quotient;
+                    break;
+            }
+// ... existing return ...
+        }
+        
+        function parseProblemFromKey(key) {
+// ... existing parseProblemFromKey ...
+        }
+
+        // !! --- LOGIC CHANGE --- !!
+        // Now requires a 'weightType' to know which pool to use
+        function pickWeightedOperand(weightType) {
+            const weightedArray = [];
+            const weights = operandWeights[weightType]; // Get the correct weight object
+
+            for (let num = MIN_NUM; num <= MAX_NUM; num++) {
+                const weight = weights[num];
+                for (let i = 0; i < weight; i++) {
+                    weightedArray.push(num);
+                }
+            }
+            return weightedArray[Math.floor(Math.random() * weightedArray.length)];
+        }
+
+        // --- Answer Handling ---
+
+        function checkAnswer() {
+// ... existing checkAnswer setup ...
+            if (problemWeights[problemKey] === undefined) {
+                problemWeights[problemKey] = DEFAULT_WEIGHT;
+            }
+
+            // !! --- LOGIC CHANGE --- !!
+            // Determine weightType and which operands to update
+            const weightType = (currentProblem.operator === '+' || currentProblem.operator === '-') ? 'addSub' : 'mulDiv';
+            
+            // For Division, we update op2 (divisor) and answer (quotient)
+            // For all others, we update op1 and op2
+            const opA = (currentProblem.operator === '÷') ? currentProblem.op2 : currentProblem.op1;
+            const opB = (currentProblem.operator === '÷') ? currentProblem.answer : currentProblem.op2;
+
+            if (userAnswer === currentProblem.answer) {
+                // CORRECT
+// ... existing scoring ...
+                
+                if (timeTaken <= TIME_LIMIT_SECONDS) {
+                    // Correct and Fast
+                    showFeedback(`Correct! +${Math.round(points)}`, "correct");
+                    problemWeights[problemKey] = Math.max(MIN_WEIGHT, problemWeights[problemKey] - 1);
+                    updateOperandWeight(opA, -1, weightType); // Adjust operand weight
+                    updateOperandWeight(opB, -1, weightType); // Adjust operand weight
+                } else {
+                    // Correct but Slow
+                    showFeedback(`Correct, but slow. +${Math.round(points)}`, "slow");
+                    problemWeights[problemKey] = Math.min(MAX_WEIGHT, problemWeights[problemKey] + 1);
+                    updateOperandWeight(opA, 1, weightType); // Adjust operand weight
+                    updateOperandWeight(opB, 1, weightType); // Adjust operand weight
+                }
+
+            } else {
+                // INCORRECT
+// ... existing scoring ...
+                showFeedback(`Incorrect. Was ${currentProblem.answer}. -${Math.round(points)}`, "incorrect");
+                problemWeights[problemKey] = Math.min(MAX_WEIGHT, problemWeights[problemKey] + 2); // Increase weight more
+                updateOperandWeight(opA, 2, weightType); // Adjust operand weight
+                updateOperandWeight(opB, 2, weightType); // Adjust operand weight
+            }
+
+            updateWeightTableDisplay(); // Update the visual table
+// ... existing checkAnswer logic ...
+        }
+
+        // --- UI & Utility Functions ---
+
+// ... existing startTimerDisplay, stopTimerDisplay, showFeedback, clearFeedback, updateScoreDisplay ...
+
+        // !! --- LOGIC CHANGE --- !!
+        // Now updates weight in the correct pool (addSub or mulDiv)
+        function updateOperandWeight(operand, change, weightType) {
+            // Only adjust weights for numbers in our range
+            if (operandWeights[weightType][operand] === undefined) return;
+            
+            let currentWeight = operandWeights[weightType][operand];
+            currentWeight += change;
+            // Clamp value
+            if (currentWeight > MAX_WEIGHT) currentWeight = MAX_WEIGHT;
+            if (currentWeight < MIN_WEIGHT) currentWeight = MIN_WEIGHT;
+            operandWeights[weightType][operand] = currentWeight;
+        }
+
+        // !! --- UI CHANGE --- !!
+        // Updates both values in the new split display
+        function updateWeightTableDisplay() {
+            for (let i = MIN_NUM; i <= MAX_NUM; i++) {
+                const addSubEl = document.getElementById(`weight-display-addSub-${i}`);
+                const mulDivEl = document.getElementById(`weight-display-mulDiv-${i}`);
+                
+                if (addSubEl) {
+                    addSubEl.textContent = operandWeights.addSub[i];
+                }
+                if (mulDivEl) {
+                    mulDivEl.textContent = operandWeights.mulDiv[i];
+                }
+            }
+        }
+        
+        function getOperatorSymbol(op) {
+// ... existing getOperatorSymbol ...
+        }
+
+        function saveToStorage() {
+// ... existing saveToStorage ...
+        }
+
+        function resetGame() {
+            // A simple confirmation for a destructive action
+            const confirmation = window.prompt("Type 'RESET' to confirm you want to erase all scores and weights.");
+            if (confirmation === 'RESET') {
+// ... existing reset logic ...
+                
+                // Reset runtime state
+                score = 0;
+                problemWeights = {};
+                // !! --- LOGIC CHANGE --- !!
+                operandWeights = getDefaultOperandWeights(); // Use new default
+                
+                // Reload UI
+                updateScoreDisplay();
+                populateWeightTable(); // Re-builds the new split table
+                showFeedback("Game Reset!", "correct");
+                
+// ... existing reset logic ...
+
+            } else {
+// ... existing reset logic ...
+            }
+        }
+
+        // Start the application
+        init();
+
+    </script>
+</body>
+</html>
