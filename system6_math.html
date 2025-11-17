@@ -1,6 +1,203 @@
-<!-- ... existing head ... -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-T">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System 6 Math Facts</title>
+    <!-- Import the pixelated font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+    
     <style>
-/* ... existing styles ... */
+        /* Base styles */
+        body {
+            background-color: #555; /* A neutral desktop background */
+            font-family: 'VT323', monospace;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding-top: 40px;
+            font-size: 20px;
+            color: #000;
+        }
+
+        /* The main window */
+        .system6-window {
+            width: 90%;
+            max-width: 450px;
+            background-color: #f0f0f0;
+            border: 2px solid #000;
+            box-shadow: 6px 6px 0px 0px rgba(0,0,0,1);
+            min-height: 300px;
+        }
+
+        /* Window title bar */
+        .title-bar {
+            background-color: #000;
+            color: #f0f0f0;
+            padding: 4px 8px;
+            font-size: 22px;
+            display: flex;
+            /* justify-content: space-between; <-- Removed this */
+            align-items: center;
+        }
+
+        #close-box {
+            width: 24px;
+            height: 24px;
+            border: 2px solid #f0f0f0;
+            background: #000;
+            margin-right: 8px; /* space */
+            cursor: pointer;
+            text-align: center;
+            line-height: 22px; /* vertically center the 'x' */
+            font-size: 20px;
+            font-weight: bold;
+        }
+        #close-box:active {
+            background: #f0f0f0;
+            color: #000;
+        }
+
+        /* The horizontal lines in the title bar */
+        .title-bar-lines {
+            flex-grow: 1;
+            padding: 0 10px;
+        }
+        
+        .title-bar-lines::before,
+        .title-bar-lines::after {
+            content: '';
+            display: block;
+            height: 2px;
+            background: #f0f0f0;
+            margin: 3px 0;
+        }
+
+        /* Main content area */
+        .window-content {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        /* Score and feedback displays */
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            font-size: 24px;
+            padding: 5px;
+            border: 2px solid #000;
+            background: #fff;
+        }
+
+        #score-display {
+            font-weight: bold;
+        }
+
+        #feedback-display {
+            text-align: center;
+            height: 30px;
+            font-size: 22px;
+            font-weight: bold;
+        }
+        /* Feedback colors */
+        .feedback-correct {
+            color: #006400; /* Dark Green */
+        }
+        .feedback-incorrect {
+            color: #8b0000; /* Dark Red */
+        }
+        .feedback-slow {
+            color: #b8860b; /* Dark Goldenrod */
+        }
+
+
+        /* The math problem itself */
+        .problem-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 48px;
+            background: #fff;
+            padding: 20px;
+            border: 2px solid #000;
+            margin: 10px 0;
+        }
+
+        #problem-text {
+            margin-right: 15px;
+        }
+
+        /* Answer input field */
+        #answer-input {
+            font-family: 'VT323', monospace;
+            font-size: 48px;
+            width: 100px;
+            border: 2px solid #000;
+            padding: 0 10px;
+            text-align: center;
+            background: #fff;
+            color: #000;
+        }
+        /* Hide arrows on number input */
+        #answer-input::-webkit-outer-spin-button,
+        #answer-input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        #answer-input[type=number] {
+            -moz-appearance: textfield;
+        }
+
+        /* Buttons */
+        .button-container {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .system6-button {
+            font-family: 'VT323', monospace;
+            font-size: 22px;
+            background-color: #f0f0f0;
+            border: 2px solid #000;
+            padding: 8px 12px;
+            box-shadow: 3px 3px 0px 0px rgba(0,0,0,1);
+            cursor: pointer;
+            flex-grow: 1;
+        }
+
+        .system6-button:active {
+            box-shadow: none;
+            transform: translate(3px, 3px);
+        }
+        
+        #reset-button {
+            background-color: #f0c0c0; /* Slight red tint for reset */
+        }
+
+        /* Settings area */
+        .settings-container {
+            margin-top: 15px;
+            border-top: 2px solid #000;
+            padding-top: 15px;
+        }
+
+        .settings-title {
+            font-size: 24px;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .weight-table {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); /* Adjusted min-width for new display */
+            gap: 10px;
+        }
+
         .weight-cell {
             display: flex;
             flex-direction: column;
@@ -11,17 +208,17 @@
         }
 
         .weight-cell label {
-/* ... existing styles ... */
+            font-size: 28px;
             font-weight: bold;
         }
 
         /* This rule was modified from .weight-cell input */
         .weight-value-display {
-/* ... existing styles ... */
             width: 30px; /* Made smaller to fit two */
             font-size: 22px;
             border: 1px solid #000;
             background: #e0e0e0; /* Read-only look */
+            text-align: center; /* Ensure number is centered */
         }
 
         /* NEW CSS for the split weight display */
@@ -49,9 +246,62 @@
     </style>
 </head>
 <body>
-<!-- ... existing body HTML ... -->
+
+    <!-- The "System 6" Window -->
+    <div class="system6-window">
+        <!-- Title Bar -->
+        <div class="title-bar">
+            <div id="close-box">X</div>
+            <span class="title-bar-lines"></span>
+            <span>Math Facts v1.0</span>
+            <span class="title-bar-lines"></span>
+        </div>
+
+        <!-- Main Window Content -->
+        <div class="window-content">
+            
+            <!-- Score and Status -->
+            <div class="status-bar">
+                <span>Score: <span id="score-display">0</span></span>
+                <span>Time: <span id="timer-display">0.0</span>s</span>
+            </div>
+
+            <!-- Feedback Display -->
+            <div id="feedback-display"></div>
+
+            <!-- Problem Area -->
+            <div class="problem-container">
+                <span id="problem-text"></span>
+                <input type="number" id="answer-input" autocomplete="off" autofocus>
+            </div>
+
+            <!-- Button Controls -->
+            <div class="button-container">
+                <button id="submit-button" class="system6-button">Submit Answer</button>
+                <button id="reset-button" class="system6-button">Reset All</button>
+            </div>
+
+            <!-- Settings / Operand Weights -->
+            <div class="settings-container">
+                <div class="settings-title">Number Weights</div>
+                <div id="weight-table-container" class="weight-table">
+                    <!-- This will be populated by JavaScript -->
+                </div>
+            </div>
+
+        </div>
+    </div>
+
     <script>
-// ... existing DOM Elements ...
+        // DOM Elements
+        const problemTextEl = document.getElementById('problem-text');
+        const answerInputEl = document.getElementById('answer-input');
+        const submitButton = document.getElementById('submit-button');
+        const resetButton = document.getElementById('reset-button');
+        const scoreDisplayEl = document.getElementById('score-display');
+        const feedbackDisplayEl = document.getElementById('feedback-display');
+        const timerDisplayEl = document.getElementById('timer-display');
+        const weightTableContainer = document.getElementById('weight-table-container');
 
         // Game State
         let score = 0;
@@ -59,10 +309,16 @@
         // operandWeights is now a nested object
         let operandWeights = {}; // e.g., { addSub: {2: 5...}, mulDiv: {2: 5...} }
         let problemWeights = {}; // e.g., {"8x7": 5, "42÷6": 8, "5+3": 1}
-// ... existing Game State ...
+        let currentProblem = null;
+        let problemTimerInterval = null;
 
         // Constants
-// ... existing Constants ...
+        const MIN_NUM = 2;
+        const MAX_NUM = 9;
+        const TIME_LIMIT_SECONDS = 3.0;
+        const DEFAULT_WEIGHT = 5;
+        const MAX_WEIGHT = 10;
+        const MIN_WEIGHT = 1;
 
         // --- Initialization ---
 
@@ -77,7 +333,11 @@
         }
 
         function init() {
-// ... existing init ...
+            loadFromStorage();
+            populateWeightTable();
+            addEventListeners();
+            nextProblem();
+            answerInputEl.focus();
         }
 
         function loadFromStorage() {
@@ -143,13 +403,39 @@
         }
 
         function addEventListeners() {
-// ... existing addEventListeners ...
+            const closeBox = document.getElementById('close-box');
+            closeBox.addEventListener('click', () => {
+                // Note: This may not work in all sandboxed browser environments
+                // It's mostly for visual/thematic effect
+                window.close();
+            });
+            
+            submitButton.addEventListener('click', checkAnswer);
+            answerInputEl.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    checkAnswer();
+                }
+            });
+            resetButton.addEventListener('click', resetGame);
         }
 
         // --- Game Loop ---
 
         function nextProblem() {
-// ... existing nextProblem code ...
+            clearFeedback();
+            answerInputEl.value = '';
+            answerInputEl.focus();
+
+            // Create a weighted pool of problems
+            const problemPool = [];
+            
+            // 1. Add known (weighted) problems from problemWeights
+            for (const key in problemWeights) {
+                const weight = problemWeights[key];
+                for (let i = 0; i < weight; i++) {
+                    problemPool.push(key);
+                }
+            }
             
             // 2. Add "NEW" problem tokens
             // The number of "NEW" tokens is based on the sum of *all* operand weights
@@ -161,7 +447,18 @@
                 problemPool.push("NEW");
             }
 
-// ... existing nextProblem code ...
+            // Pick a problem from the pool
+            const choice = problemPool[Math.floor(Math.random() * problemPool.length)];
+
+            if (choice === "NEW" || !choice) {
+                currentProblem = generateNewProblem();
+            } else {
+                currentProblem = parseProblemFromKey(choice);
+            }
+
+            // Display problem
+            const operatorSymbol = getOperatorSymbol(currentProblem.operator);
+            problemTextEl.textContent = `${currentProblem.op1} ${operatorSymbol} ${currentProblem.op2} =`;
             
             // Start timer
             currentProblem.startTime = Date.now();
@@ -182,7 +479,17 @@
 
             switch (operator) {
                 case '+':
-// ... existing switch case ...
+                    answer = op1 + op2;
+                    break;
+                case '-':
+                    // Ensure op1 is always greater than or equal to op2 for positive answers
+                    if (op2 > op1) {
+                        [op1, op2] = [op2, op1]; // Swap
+                    }
+                    answer = op1 - op2;
+                    break;
+                case 'x':
+                    answer = op1 * op2;
                     break;
                 case '÷':
                     // For division, generate product first to ensure whole numbers
@@ -191,11 +498,26 @@
                     answer = quotient;
                     break;
             }
-// ... existing return ...
+            return { op1, op2, operator, answer, startTime: null };
         }
         
         function parseProblemFromKey(key) {
-// ... existing parseProblemFromKey ...
+            // Key is like "42÷6"
+            const match = key.match(/(\d+)([+\-x÷])(\d+)/);
+            if (!match) return generateNewProblem(); // Fallback
+            
+            const op1 = parseInt(match[1], 10);
+            const operator = match[2];
+            const op2 = parseInt(match[3], 10);
+            let answer;
+            
+            switch (operator) {
+                case '+': answer = op1 + op2; break;
+                case '-': answer = op1 - op2; break;
+                case 'x': answer = op1 * op2; break;
+                case '÷': answer = op1 / op2; break;
+            }
+            return { op1, op2, operator, answer, startTime: null };
         }
 
         // !! --- LOGIC CHANGE --- !!
@@ -216,7 +538,12 @@
         // --- Answer Handling ---
 
         function checkAnswer() {
-// ... existing checkAnswer setup ...
+            stopTimerDisplay();
+            const timeTaken = (Date.now() - currentProblem.startTime) / 1000;
+            const userAnswer = parseInt(answerInputEl.value, 10);
+            const problemKey = `${currentProblem.op1}${currentProblem.operator}${currentProblem.op2}`;
+            
+            // Ensure problem has a default weight
             if (problemWeights[problemKey] === undefined) {
                 problemWeights[problemKey] = DEFAULT_WEIGHT;
             }
@@ -232,7 +559,8 @@
 
             if (userAnswer === currentProblem.answer) {
                 // CORRECT
-// ... existing scoring ...
+                const points = Math.max(2, (currentProblem.op1 + currentProblem.op2) / 2);
+                score += points;
                 
                 if (timeTaken <= TIME_LIMIT_SECONDS) {
                     // Correct and Fast
@@ -250,7 +578,8 @@
 
             } else {
                 // INCORRECT
-// ... existing scoring ...
+                const points = Math.max(1, (currentProblem.op1 + currentProblem.op2) / 4);
+                score = Math.max(0, score - points); // Don't go below zero
                 showFeedback(`Incorrect. Was ${currentProblem.answer}. -${Math.round(points)}`, "incorrect");
                 problemWeights[problemKey] = Math.min(MAX_WEIGHT, problemWeights[problemKey] + 2); // Increase weight more
                 updateOperandWeight(opA, 2, weightType); // Adjust operand weight
@@ -258,18 +587,60 @@
             }
 
             updateWeightTableDisplay(); // Update the visual table
-// ... existing checkAnswer logic ...
+            updateScoreDisplay();
+            saveToStorage();
+
+            // Disable input while feedback is shown
+            answerInputEl.disabled = true;
+            submitButton.disabled = true;
+
+            setTimeout(() => {
+                answerInputEl.disabled = false;
+                submitButton.disabled = false;
+                nextProblem();
+            }, 1500); // Wait 1.5 seconds before next problem
         }
 
         // --- UI & Utility Functions ---
 
-// ... existing startTimerDisplay, stopTimerDisplay, showFeedback, clearFeedback, updateScoreDisplay ...
+        function startTimerDisplay() {
+            const startTime = Date.now();
+            timerDisplayEl.textContent = "0.0";
+            
+            problemTimerInterval = setInterval(() => {
+                const elapsed = (Date.now() - startTime) / 1000;
+                timerDisplayEl.textContent = elapsed.toFixed(1);
+            }, 100);
+        }
+
+        function stopTimerDisplay() {
+            clearInterval(problemTimerInterval);
+        }
+
+        function showFeedback(message, type) {
+            feedbackDisplayEl.textContent = message;
+            feedbackDisplayEl.className = `feedback-${type}`;
+        }
+
+        function clearFeedback() {
+            feedbackDisplayEl.textContent = '';
+            feedbackDisplayEl.className = '';
+        }
+
+        function updateScoreDisplay() {
+            scoreDisplayEl.textContent = Math.round(score);
+        }
 
         // !! --- LOGIC CHANGE --- !!
         // Now updates weight in the correct pool (addSub or mulDiv)
         function updateOperandWeight(operand, change, weightType) {
             // Only adjust weights for numbers in our range
-            if (operandWeights[weightType][operand] === undefined) return;
+            // Check if operand is valid (e.g. for 42 / 6, answer is 7, which is fine)
+            // But if 4 / 2, answer is 2. If 3 / 1, answer is 3.
+            // We need to handle cases where an operand might be outside the 2-9 range (e.g., 1, 10, 11, 12)
+            if (operand < MIN_NUM || operand > MAX_NUM) return;
+            // Also need to check if the weightType and operand exist
+            if (!operandWeights[weightType] || operandWeights[weightType][operand] === undefined) return;
             
             let currentWeight = operandWeights[weightType][operand];
             currentWeight += change;
@@ -296,18 +667,24 @@
         }
         
         function getOperatorSymbol(op) {
-// ... existing getOperatorSymbol ...
+            if (op === 'x') return '×';
+            if (op === '÷') return '÷';
+            return op;
         }
 
         function saveToStorage() {
-// ... existing saveToStorage ...
+            localStorage.setItem('mathFactsScore', score);
+            localStorage.setItem('mathFactsOperandWeights', JSON.stringify(operandWeights));
+            localStorage.setItem('mathFactsProblemWeights', JSON.stringify(problemWeights));
         }
 
         function resetGame() {
             // A simple confirmation for a destructive action
             const confirmation = window.prompt("Type 'RESET' to confirm you want to erase all scores and weights.");
             if (confirmation === 'RESET') {
-// ... existing reset logic ...
+                localStorage.removeItem('mathFactsScore');
+                localStorage.removeItem('mathFactsOperandWeights');
+                localStorage.removeItem('mathFactsProblemWeights');
                 
                 // Reset runtime state
                 score = 0;
@@ -320,10 +697,15 @@
                 populateWeightTable(); // Re-builds the new split table
                 showFeedback("Game Reset!", "correct");
                 
-// ... existing reset logic ...
+                // Clear the feedback after a moment and start new game
+                setTimeout(() => {
+                    clearFeedback();
+                    nextProblem();
+                }, 1500);
 
             } else {
-// ... existing reset logic ...
+                showFeedback("Reset Canceled.", "slow");
+                setTimeout(clearFeedback, 1500);
             }
         }
 
