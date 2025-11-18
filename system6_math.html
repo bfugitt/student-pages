@@ -531,7 +531,7 @@
                     currentProblem = { num1, num2, op, answer: num1 * num2 };
                 }
                 
-                tempKey = `${currentProblem.num1}${op}${currentProblem.num2}`;
+                tempKey = `${currentProblem.num1}${currentProblem.op}${currentProblem.num2}`;
                 
                 if (tempKey !== lastProblemKey) {
                     validProblemFound = true;
@@ -551,6 +551,8 @@
             // Reset background color in case it was flashed
             problemContainer.classList.remove('correction-display'); // Remove the correction class
             answerInput.value = '';
+            
+            // Force focus back onto the input field (triggers the virtual keyboard on mobile)
             answerInput.focus();
             
             // Start the per-problem timer
@@ -694,6 +696,8 @@
             
             // Temporarily disable the input field during correction display
             answerInput.disabled = true;
+            // Blur the input field to remove focus and dismiss the keyboard cleanly
+            answerInput.blur();
 
             // Apply the correction display styles
             problemContainer.classList.add('correction-display');
