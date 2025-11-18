@@ -267,26 +267,28 @@
         const MIN_WEIGHT = 1;
         const MAX_WEIGHT = 10;
         
-        // --- NEW! Initial Game Range ---
-        // Change these to set the default starting range for a new game
+        // --- Game Range Settings ---
+        // The numbers used when a game is first started
         const INITIAL_MIN_NUM = 2;
         const INITIAL_MAX_NUM = 9;
 
-        // --- NEW! Master Game Range (Absolute boundaries) ---
-        // The game will "level up" within these boundaries
+        // The absolute maximum number the curriculum will expand to
         const MASTER_MIN_NUM = 2;
         const MASTER_MAX_NUM = 12;
 
         // --- Game State Variables ---
         let currentScore = 0;
         let operandWeights = { addSub: {}, mulDiv: {} };
-        let problemWeights = {}; // e.g., "7x6": 5
+        let problemWeights = {}; // Deprecated for selection, but kept for data structure consistency
         let currentProblem = {};
         let lastProblemKey = ""; // To prevent immediate repeats
         let startTime = 0;
         let timerInterval = null;
-        let currentMinNum = INITIAL_MIN_NUM; // Current active min
-        let currentMaxNum = INITIAL_MAX_NUM; // Current active max
+        
+        // NEW: Separate max numbers for each operation type to allow independent progression
+        let minNumActive = INITIAL_MIN_NUM; 
+        let maxNumAddSub = INITIAL_MAX_NUM;
+        let maxNumMulDiv = INITIAL_MAX_NUM;
 
         // --- DOM Elements ---
         const problemContainer = document.getElementById('problem-container');
@@ -309,15 +311,17 @@
                 try {
                     const state = JSON.parse(savedState);
                     currentScore = state.currentScore || 0;
-                    // Fallback for users upgrading - set range from constants if not saved
-                    currentMinNum = state.currentMinNum || INITIAL_MIN_NUM;
-                    currentMaxNum = state.currentMaxNum || INITIAL_MAX_NUM;
+                    
+                    // Load the new split max numbers (with fallbacks for older saves)
+                    minNumActive = state.minNumActive || INITIAL_MIN_NUM;
+                    maxNumAddSub = state.maxNumAddSub || state.currentMaxNum || INITIAL_MAX_NUM;
+                    maxNumMulDiv = state.maxNumMulDiv || state.currentMaxNum || INITIAL_MAX_NUM;
+                    
                     operandWeights = state.operandWeights;
-                    // problemWeights is deprecated for selection but kept for data structure consistency
                     problemWeights = state.problemWeights || {};
                     lastProblemKey = state.lastProblemKey || "";
                     
-                    // Ensure weights exist for the current range (for users upgrading)
+                    // Ensure weights exist for the current range
                     ensureWeightsExist();
 
                 } catch (e) {
@@ -337,8 +341,9 @@
          */
         function initializeNewGame() {
             currentScore = 0;
-            currentMinNum = INITIAL_MIN_NUM;
-            currentMaxNum = INITIAL_MAX_NUM;
+            minNumActive = INITIAL_MIN_NUM;
+            maxNumAddSub = INITIAL_MAX_NUM;
+            maxNumMulDiv = INITIAL_MAX_NUM;
             operandWeights = { addSub: {}, mulDiv: {} };
             problemWeights = {};
             lastProblemKey = "";
@@ -347,14 +352,18 @@
         }
         
         /**
-         * Ensures that all numbers in the current range (min to max)
+         * Ensures that all numbers in the current active range (min to max)
          * have a weight entry.
          */
         function ensureWeightsExist() {
-            for (let i = currentMinNum; i <= currentMaxNum; i++) {
+            // Check Add/Sub range
+            for (let i = minNumActive; i <= maxNumAddSub; i++) {
                 if (!operandWeights.addSub[i]) {
                     operandWeights.addSub[i] = INITIAL_OPERAND_WEIGHT;
                 }
+            }
+            // Check Mul/Div range
+            for (let i = minNumActive; i <= maxNumMulDiv; i++) {
                 if (!operandWeights.mulDiv[i]) {
                     operandWeights.mulDiv[i] = INITIAL_OPERAND_WEIGHT;
                 }
@@ -367,8 +376,9 @@
         function saveGameState() {
             const state = {
                 currentScore,
-                currentMinNum,
-                currentMaxNum,
+                minNumActive,
+                maxNumAddSub,
+                maxNumMulDiv,
                 operandWeights,
                 problemWeights,
                 lastProblemKey
@@ -380,17 +390,17 @@
          * Resets the game to its initial state.
          */
         function resetGame() {
-            stopTimerDisplay(); // Fix for flickering timer bug!
+            stopTimerDisplay(); 
             
             // Use window.prompt for a retro, blocking confirmation
             const confirmation = window.prompt("Type 'RESET' to confirm you want to erase all progress.");
             if (confirmation !== 'RESET') {
-                startTimerDisplay(); // Restart timer if they canceled
+                startTimerDisplay(); 
                 return;
             }
             
             localStorage.removeItem(LOCAL_STORAGE_KEY);
-            initializeNewGame(); // Set up a fresh game using initial constants
+            initializeNewGame(); 
             saveGameState();
             updateScoreDisplay();
             updateWeightTable();
@@ -400,15 +410,15 @@
         }
         
         /**
-         * Creates a weighted list from a weight object.
-         * e.g., { "7": 3, "8": 1 } becomes ["7", "7", "7", "8"]
+         * Creates a weighted list from a weight object, filtering by the max allowed number.
          */
-        function createWeightedList(weights) {
+        function createWeightedList(weights, maxNum) {
             const list = [];
-            for (const item in weights) {
-                const weight = weights[item] || 1;
-                for (let i = 0; i < weight; i++) {
-                    list.push(item);
+            for (let i = minNumActive; i <= maxNum; i++) {
+                // Use the weight for the number, ensuring it exists in the active range
+                const weight = weights[i] || INITIAL_OPERAND_WEIGHT; 
+                for (let j = 0; j < weight; j++) {
+                    list.push(i.toString());
                 }
             }
             return list;
@@ -430,62 +440,68 @@
             const operations = ['+', '-', 'x', '÷'];
             let num1, num2, op;
             
-            // Attempt to get a problem, ensuring no immediate repeats
             let validProblemFound = false;
             let attempts = 0;
 
             while (!validProblemFound && attempts < 15) {
                 attempts++;
                 
-                // Generate a new problem based purely on Operand Weights
                 op = operations[Math.floor(Math.random() * operations.length)];
                 
-                let weightPool;
+                let weightPool, maxNum;
                 if (op === '+' || op === '-') {
-                    weightPool = createWeightedList(operandWeights.addSub);
+                    maxNum = maxNumAddSub;
+                    weightPool = createWeightedList(operandWeights.addSub, maxNum);
                 } else {
-                    weightPool = createWeightedList(operandWeights.mulDiv);
+                    maxNum = maxNumMulDiv;
+                    weightPool = createWeightedList(operandWeights.mulDiv, maxNum);
                 }
                 
-                // Fallback if pool is empty
+                // Fallback if pool is empty (shouldn't happen with ensureWeightsExist)
                 if (weightPool.length === 0) {
-                    num1 = currentMinNum;
-                    num2 = currentMinNum;
+                    num1 = minNumActive;
+                    num2 = minNumActive;
                 } else {
                     num1 = parseInt(selectRandomFromList(weightPool));
                     num2 = parseInt(selectRandomFromList(weightPool));
                 }
 
                 // --- Handle special division/subtraction logic ---
-                // We calculate answers here to check against lastProblemKey logic
                 let tempKey = "";
                 if (op === '÷') {
+                    // Division problem generation: Dividend = Factor * Quotient
+                    // num1 (factor) * num2 (factor) = product
+                    // Product is dividend (num1), num2 is divisor, original num1 is answer
                     const product = num1 * num2;
-                    if (product > 99 || product === 0) { 
-                        num1 = 8; num2 = 2; op = '÷'; // Fallback
+                    if (product > 99 || product === 0 || num2 < minNumActive) { 
+                        // If the resulting problem is too large, or we divide by a number smaller than min, skip/fallback
+                        continue; // Try again
                     } else {
+                        const answer = num1; 
                         num1 = product; // Dividend
                         // num2 is Divisor
+                        // We must ensure the answer (original num1) is also in the active range
+                        if(answer < minNumActive || answer > maxNum) continue; 
+                        currentProblem = { num1, num2, op, answer };
                     }
                 } else if (op === '-') {
-                    if (num1 < num2) [num1, num2] = [num2, num1]; // Swap
+                    if (num1 < num2) [num1, num2] = [num2, num1]; // Swap for positive result
+                    currentProblem = { num1, num2, op, answer: num1 - num2 };
+                } else if (op === '+') {
+                    currentProblem = { num1, num2, op, answer: num1 + num2 };
+                } else if (op === 'x') {
+                    currentProblem = { num1, num2, op, answer: num1 * num2 };
                 }
                 
-                tempKey = `${num1}${op}${num2}`;
+                tempKey = `${currentProblem.num1}${op}${currentProblem.num2}`;
                 
                 if (tempKey !== lastProblemKey) {
                     validProblemFound = true;
-                    // Calculate Answer for storage
-                    if (op === '÷') currentProblem = { num1, num2, op, answer: num1 / num2 };
-                    else if (op === '-') currentProblem = { num1, num2, op, answer: num1 - num2 };
-                    else if (op === '+') currentProblem = { num1, num2, op, answer: num1 + num2 };
-                    else if (op === 'x') currentProblem = { num1, num2, op, answer: num1 * num2 };
                 }
             }
             
-            // If we still didn't find a unique one (rare), just use whatever we have
+            // Safety net if loop failed
             if (!currentProblem.op) {
-                 // Safety net
                  currentProblem = { num1: 2, num2: 2, op: '+', answer: 4 };
             }
 
@@ -513,7 +529,7 @@
             if (isNaN(userAnswer)) {
                 feedback.textContent = "Please enter a number.";
                 feedback.className = 'feedback-incorrect';
-                startTimerDisplay(); // Restart timer to let them try again
+                startTimerDisplay(); 
                 return;
             }
 
@@ -521,26 +537,25 @@
             const isFast = (answerTime <= TIME_LIMIT_SECONDS);
             
             let scoreChange = 0;
-            const baseScore = (currentProblem.num1 + currentProblem.num2) / 2; // Base score part
+            // Base score based on the size of the operands
+            const baseScore = (currentProblem.num1 + currentProblem.num2) / 2; 
 
             if (isCorrect) {
                 if (isFast) {
                     feedback.textContent = `Correct! (${answerTime.toFixed(1)}s)`;
                     feedback.className = 'feedback-correct';
-                    scoreChange = Math.max(2, baseScore); // Full score
+                    scoreChange = Math.max(2, baseScore); 
                     adjustWeights(currentProblem, false); // Decrease weight
                 } else {
+                    // Correct, but slow: no weight change
                     feedback.textContent = `Correct, but slow. (${answerTime.toFixed(1)}s)`;
                     feedback.className = 'feedback-correct';
-                    // Half score for slow, min 1
                     scoreChange = Math.max(1, baseScore / 2); 
-                    // MODIFIED: Do NOT adjust weights if correct but slow
-                    // adjustWeights(currentProblem, true); 
                 }
             } else {
                 feedback.textContent = `Incorrect. The answer was ${currentProblem.answer}.`;
                 feedback.className = 'feedback-incorrect';
-                scoreChange = -Math.max(1, baseScore / 4); // Subtract score
+                scoreChange = -Math.max(1, baseScore / 4); 
                 adjustWeights(currentProblem, true); // Increase weight
             }
 
@@ -548,8 +563,9 @@
             currentScore = Math.max(0, currentScore + scoreChange);
             updateScoreDisplay();
             
-            // Check for level up
-            checkLevelUp();
+            // Check for max number progression (Level Up)
+            const opType = (currentProblem.op === '+' || currentProblem.op === '-') ? 'addSub' : 'mulDiv';
+            checkMaxNumProgression(opType);
 
             // Update UI and save
             updateWeightTable();
@@ -565,17 +581,10 @@
          * @param {boolean} increase - True to increase weight, false to decrease.
          */
         function adjustWeights(problem, increase) {
-            const { num1, num2, op } = problem;
+            const { num1, num2, op, answer } = problem;
             const change = increase ? WEIGHT_CHANGE_AMOUNT : -WEIGHT_CHANGE_AMOUNT;
 
-            // 1. Adjust Problem Weight (Deprecated for selection, but kept for structure)
-            const problemKey = `${num1}${op}${num2}`;
-            if (!problemWeights[problemKey]) {
-                problemWeights[problemKey] = INITIAL_PROBLEM_WEIGHT;
-            }
-            problemWeights[problemKey] = Math.max(MIN_WEIGHT, Math.min(MAX_WEIGHT, problemWeights[problemKey] + change));
-
-            // 2. Adjust Operand Weights
+            // 1. Adjust Operand Weights
             let weightPool;
             if (op === '+' || op === '-') {
                 weightPool = operandWeights.addSub;
@@ -583,50 +592,61 @@
                 weightPool = operandWeights.mulDiv;
             }
             
-            // Only adjust weights for numbers in our *master* range
+            // Adjust num1's weight
             if (num1 >= MASTER_MIN_NUM && num1 <= MASTER_MAX_NUM) {
-                 weightPool[num1] = Math.max(MIN_WEIGHT, Math.min(MAX_WEIGHT, weightPool[num1] + change));
+                 if (weightPool[num1] !== undefined) {
+                     weightPool[num1] = Math.max(MIN_WEIGHT, Math.min(MAX_WEIGHT, weightPool[num1] + change));
+                 }
             }
+            
+            // Adjust num2's weight
             if (num2 >= MASTER_MIN_NUM && num2 <= MASTER_MAX_NUM) {
-                // For division, the 2nd num is the one we want to practice
-                let numToAdjust = (op === '÷') ? num2 : num2; 
-                if (op === '÷' && problem.num1 === 8 && problem.num2 === 2) {
-                    // Handle fallback case
-                } else if (op === '÷') {
-                    numToAdjust = problem.answer; // e.g., for 12 / 6 = 2, adjust 6 and 2
-                     // Check if numToAdjust is within valid range before accessing
-                     if (numToAdjust >= MASTER_MIN_NUM && numToAdjust <= MASTER_MAX_NUM) {
-                         weightPool[numToAdjust] = Math.max(MIN_WEIGHT, Math.min(MAX_WEIGHT, weightPool[numToAdjust] + change));
-                     }
+                if (weightPool[num2] !== undefined) {
+                    weightPool[num2] = Math.max(MIN_WEIGHT, Math.min(MAX_WEIGHT, weightPool[num2] + change));
                 }
-                
-                weightPool[num2] = Math.max(MIN_WEIGHT, Math.min(MAX_WEIGHT, weightPool[num2] + change));
+            }
+
+            // For division, the result (answer) is also a factor that needs adjustment
+            if (op === '÷' && answer >= MASTER_MIN_NUM && answer <= MASTER_MAX_NUM) {
+                if (weightPool[answer] !== undefined) {
+                    weightPool[answer] = Math.max(MIN_WEIGHT, Math.min(MAX_WEIGHT, weightPool[answer] + change));
+                }
             }
         }
         
         /**
-         * Checks if the student has mastered the current set and can level up.
+         * Checks if the max number for an operation type should be increased (leveled up).
+         * This happens if the current max number has been mastered (weight = 1).
+         * @param {string} operationType - 'addSub' or 'mulDiv'
          */
-        function checkLevelUp() {
-            if (currentMaxNum >= MASTER_MAX_NUM) {
-                return; // Already at max level
-            }
-
-            let allMastered = true;
-            for (let i = currentMinNum; i <= currentMaxNum; i++) {
-                if (operandWeights.addSub[i] > MIN_WEIGHT || operandWeights.mulDiv[i] > MIN_WEIGHT) {
-                    allMastered = false;
-                    break;
+        function checkMaxNumProgression(operationType) {
+            const isAddSub = (operationType === 'addSub');
+            let currentMax = isAddSub ? maxNumAddSub : maxNumMulDiv;
+            const weightPool = isAddSub ? operandWeights.addSub : operandWeights.mulDiv;
+            
+            // The number to check for mastery is the current max number itself
+            // Ensure we haven't hit the absolute maximum, and the current max number's weight is 1
+            if (currentMax < MASTER_MAX_NUM && weightPool[currentMax] === MIN_WEIGHT) {
+                
+                // Increment the max number to unlock the next one
+                currentMax++;
+                
+                // Apply the change back to the state
+                if (isAddSub) {
+                    maxNumAddSub = currentMax;
+                } else {
+                    maxNumMulDiv = currentMax;
                 }
-            }
-
-            if (allMastered) {
-                currentMaxNum++; // Level up!
-                ensureWeightsExist(); // Add the new number to the pool
-                feedback.textContent = `Level Up! Now practicing facts up to ${currentMaxNum}!`;
+                
+                // Initialize the new number's weight
+                ensureWeightsExist();
+                
+                feedback.textContent = `Level Up! Unlocked facts for ${currentMax} in ${operationType === 'addSub' ? 'Add/Sub' : 'Mult/Div'}!`;
                 feedback.className = 'feedback-correct';
-                updateWeightTable(); // Re-draw table with new number
+                
+                return true;
             }
+            return false;
         }
 
         // === UI Functions ===
@@ -635,7 +655,7 @@
          * Starts the visual timer display.
          */
         function startTimerDisplay() {
-            stopTimerDisplay(); // Clear any existing timer
+            stopTimerDisplay(); 
             timerInterval = setInterval(() => {
                 const elapsed = (Date.now() - startTime) / 1000.0;
                 timerDisplay.textContent = `Time: ${elapsed.toFixed(1)}s`;
@@ -674,16 +694,30 @@
                 <th>&times; / &divide;</th>
             `;
             
+            // Determine the highest number to display in the table
+            const overallMax = Math.max(maxNumAddSub, maxNumMulDiv);
+
             // Build Body
-            for (let i = currentMinNum; i <= currentMaxNum; i++) {
+            for (let i = minNumActive; i <= overallMax; i++) {
                 const row = document.createElement('tr');
-                const addSubWeight = operandWeights.addSub[i] || INITIAL_OPERAND_WEIGHT;
-                const mulDivWeight = operandWeights.mulDiv[i] || INITIAL_OPERAND_WEIGHT;
+                
+                // Check if this number is currently active in the curriculum
+                const addSubActive = i <= maxNumAddSub;
+                const mulDivActive = i <= maxNumMulDiv;
+
+                // Get weights, showing N/A if not active/unlocked yet
+                const addSubWeight = addSubActive ? (operandWeights.addSub[i] || INITIAL_OPERAND_WEIGHT) : 'N/A';
+                const mulDivWeight = mulDivActive ? (operandWeights.mulDiv[i] || INITIAL_OPERAND_WEIGHT) : 'N/A';
+                
+                // Determine highlight classes
+                const addSubClass = addSubActive && addSubWeight === MIN_WEIGHT ? 'weight-low' : '';
+                const mulDivClass = mulDivActive && mulDivWeight === MIN_WEIGHT ? 'weight-low' : '';
+
 
                 row.innerHTML = `
                     <td>${i}</td>
-                    <td class="${addSubWeight === MIN_WEIGHT ? 'weight-low' : ''}">${addSubWeight}</td>
-                    <td class="${mulDivWeight === MIN_WEIGHT ? 'weight-low' : ''}">${mulDivWeight}</td>
+                    <td class="${addSubClass}">${addSubWeight}</td>
+                    <td class="${mulDivClass}">${mulDivWeight}</td>
                 `;
                 weightsTableBody.appendChild(row);
             }
