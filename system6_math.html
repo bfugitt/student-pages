@@ -1,716 +1,708 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-T">
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>System 6 Math Facts</title>
-    <!-- Import the pixelated font -->
+    <!-- 
+      Using a retro pixel font.
+      "VT323" is a good open-source option that mimics old terminal fonts.
+    -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
-    
+
     <style>
-        /* Base styles */
+        /* Base styling */
         body {
-            background-color: #555; /* A neutral desktop background */
             font-family: 'VT323', monospace;
+            background-color: #f0f0f0;
+            color: #000;
             display: flex;
             justify-content: center;
-            align-items: flex-start;
-            padding-top: 40px;
-            font-size: 20px;
-            color: #000;
-        }
-
-        /* The main window */
-        .system6-window {
-            width: 90%;
-            max-width: 450px;
-            background-color: #f0f0f0;
-            border: 2px solid #000;
-            box-shadow: 6px 6px 0px 0px rgba(0,0,0,1);
-            min-height: 300px;
-        }
-
-        /* Window title bar */
-        .title-bar {
-            background-color: #000;
-            color: #f0f0f0;
-            padding: 4px 8px;
-            font-size: 22px;
-            display: flex;
-            /* justify-content: space-between; <-- Removed this */
             align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+            /* Use a tiling 1-bit pattern for the background, classic Mac style */
+            background-image: linear-gradient(45deg, #ccc 25%, transparent 25%), 
+                              linear-gradient(-45deg, #ccc 25%, transparent 25%), 
+                              linear-gradient(45deg, transparent 75%, #ccc 75%), 
+                              linear-gradient(-45deg, transparent 75%, #ccc 75%);
+            background-size: 4px 4px;
         }
 
-        #close-box {
-            width: 24px;
-            height: 24px;
-            border: 2px solid #f0f0f0;
-            background: #000;
-            margin-right: 8px; /* space */
-            cursor: pointer;
-            text-align: center;
-            line-height: 22px; /* vertically center the 'x' */
-            font-size: 20px;
-            font-weight: bold;
-        }
-        #close-box:active {
-            background: #f0f0f0;
-            color: #000;
+        /* The main application window */
+        .window {
+            width: 100%;
+            max-width: 420px;
+            background-color: #fff;
+            border: 2px solid #000;
+            box-shadow: 6px 6px 0px #000;
+            display: flex;
+            flex-direction: column;
         }
 
-        /* The horizontal lines in the title bar */
-        .title-bar-lines {
+        /* Title bar styling */
+        .title-bar {
+            background-color: #fff;
+            border-bottom: 2px solid #000;
+            padding: 4px 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+        }
+
+        /* Stripes on the title bar */
+        .title-bar-stripes {
             flex-grow: 1;
-            padding: 0 10px;
+            background-image: repeating-linear-gradient(
+                to bottom,
+                #000,
+                #000 2px,
+                #fff 2px,
+                #fff 4px
+            );
+            height: 14px;
+            margin-left: 8px;
+            margin-right: 8px;
         }
-        
-        .title-bar-lines::before,
-        .title-bar-lines::after {
-            content: '';
-            display: block;
-            height: 2px;
-            background: #f0f0f0;
-            margin: 3px 0;
+
+        /* Close box 'X' */
+        .close-box {
+            width: 18px;
+            height: 18px;
+            border: 2px solid #000;
+            background: #fff;
+            text-align: center;
+            line-height: 14px;
+            font-weight: bold;
+            cursor: default;
+            font-size: 16px;
         }
 
         /* Main content area */
-        .window-content {
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-
-        /* Score and feedback displays */
-        .status-bar {
-            display: flex;
-            justify-content: space-between;
-            font-size: 24px;
-            padding: 5px;
-            border: 2px solid #000;
-            background: #fff;
-        }
-
-        #score-display {
-            font-weight: bold;
-        }
-
-        #feedback-display {
+        .content {
+            padding: 16px;
             text-align: center;
-            height: 30px;
-            font-size: 22px;
-            font-weight: bold;
-        }
-        /* Feedback colors */
-        .feedback-correct {
-            color: #006400; /* Dark Green */
-        }
-        .feedback-incorrect {
-            color: #8b0000; /* Dark Red */
-        }
-        .feedback-slow {
-            color: #b8860b; /* Dark Goldenrod */
+            font-size: 24px;
+            flex-grow: 1;
         }
 
-
-        /* The math problem itself */
-        .problem-container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 48px;
-            background: #fff;
-            padding: 20px;
-            border: 2px solid #000;
-            margin: 10px 0;
-        }
-
-        #problem-text {
-            margin-right: 15px;
+        /* Problem display */
+        #problem-container {
+            font-size: 64px;
+            margin: 20px 0;
+            height: 80px; /* Prevent layout shift */
+            line-height: 80px;
+            letter-spacing: 4px;
         }
 
         /* Answer input field */
         #answer-input {
             font-family: 'VT323', monospace;
             font-size: 48px;
-            width: 100px;
-            border: 2px solid #000;
-            padding: 0 10px;
+            width: 120px;
             text-align: center;
-            background: #fff;
-            color: #000;
+            border: 2px solid #000;
+            padding: 5px;
+            /* Remove number spinner arrows */
+            -moz-appearance: textfield;
         }
-        /* Hide arrows on number input */
         #answer-input::-webkit-outer-spin-button,
         #answer-input::-webkit-inner-spin-button {
             -webkit-appearance: none;
             margin: 0;
         }
-        #answer-input[type=number] {
-            -moz-appearance: textfield;
+
+        /* Feedback message (Correct/Incorrect) */
+        #feedback {
+            font-size: 24px;
+            height: 30px; /* Prevent layout shift */
+            line-height: 30px;
+            margin-top: 15px;
+            font-weight: bold;
         }
 
-        /* Buttons */
-        .button-container {
+        .feedback-correct {
+            color: #000; /* Keeping it monochrome */
+        }
+        .feedback-incorrect {
+            color: #000; /* Keeping it monochrome */
+            /* Maybe an invert? */
+            /* background: #000;
+            color: #fff; */
+        }
+
+        /* Info bar for score and timer */
+        .info-bar {
             display: flex;
             justify-content: space-between;
-            gap: 10px;
-        }
-
-        .system6-button {
-            font-family: 'VT323', monospace;
-            font-size: 22px;
-            background-color: #f0f0f0;
-            border: 2px solid #000;
-            padding: 8px 12px;
-            box-shadow: 3px 3px 0px 0px rgba(0,0,0,1);
-            cursor: pointer;
-            flex-grow: 1;
-        }
-
-        .system6-button:active {
-            box-shadow: none;
-            transform: translate(3px, 3px);
-        }
-        
-        #reset-button {
-            background-color: #f0c0c0; /* Slight red tint for reset */
-        }
-
-        /* Settings area */
-        .settings-container {
-            margin-top: 15px;
-            border-top: 2px solid #000;
-            padding-top: 15px;
-        }
-
-        .settings-title {
-            font-size: 24px;
-            margin-bottom: 10px;
-            text-align: center;
-        }
-
-        .weight-table {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); /* Adjusted min-width for new display */
-            gap: 10px;
-        }
-
-        .weight-cell {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            background: #fff;
-            border: 2px solid #000;
-            padding: 5px;
-        }
-
-        .weight-cell label {
-            font-size: 28px;
-            font-weight: bold;
-        }
-
-        /* This rule was modified from .weight-cell input */
-        .weight-value-display {
-            width: 30px; /* Made smaller to fit two */
-            font-size: 22px;
-            border: 1px solid #000;
-            background: #e0e0e0; /* Read-only look */
-            text-align: center; /* Ensure number is centered */
-        }
-
-        /* NEW CSS for the split weight display */
-        .weight-pair-display {
-            display: flex;
-            flex-direction: row;
-            align-items: center;
-            justify-content: space-around;
-            gap: 5px;
             font-size: 20px;
-            margin-top: 4px;
-        }
-        
-        /* Style for the "+/-" and "x/" labels */
-        .weight-pair-display > span:first-child,
-        .weight-pair-display > span:nth-child(3) {
-            font-weight: bold;
-            color: #555;
-            font-size: 18px;
-            width: 25px;
-            text-align: center;
+            padding: 10px 16px;
+            border-top: 2px solid #000;
         }
 
+        /* Button styling */
+        .button-bar {
+            padding: 0 16px 16px;
+            display: flex;
+            justify-content: flex-end; /* Align to the right */
+        }
+        .btn {
+            font-family: 'VT323', monospace;
+            font-size: 20px;
+            background-color: #fff;
+            border: 2px solid #000;
+            padding: 5px 15px;
+            margin-left: 10px;
+            box-shadow: 3px 3px 0px #000;
+            cursor: pointer;
+            user-select: none;
+        }
+        .btn:active {
+            box-shadow: 1px 1px 0px #000;
+            transform: translate(2px, 2px);
+        }
+
+        /* Weights display table */
+        .weights-container {
+            font-size: 18px;
+            padding: 10px 16px 16px;
+            border-top: 2px solid #000;
+        }
+        .weights-container h3 {
+            margin: 0 0 10px;
+            text-align: left;
+            font-size: 22px;
+        }
+        #weights-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: center;
+        }
+        #weights-table th,
+        #weights-table td {
+            border: 1px solid #000;
+            padding: 4px;
+            font-size: 18px;
+        }
+        #weights-table th {
+            background-color: #eee;
+        }
+        /* Highlight low weights */
+        .weight-low {
+            background-color: #c0ffc0; /* A light green, even in monochrome this will be a shade */
+        }
 
     </style>
 </head>
 <body>
 
-    <!-- The "System 6" Window -->
-    <div class="system6-window">
-        <!-- Title Bar -->
+    <!-- Main application window -->
+    <div class="window">
+        <!-- Title bar -->
         <div class="title-bar">
-            <div id="close-box">X</div>
-            <span class="title-bar-lines"></span>
-            <span>Math Facts v1.0</span>
-            <span class="title-bar-lines"></span>
+            <div class="close-box">&times;</div>
+            <div class="title-bar-stripes"></div>
+            <div>System 6 Math Facts</div>
+            <div class="title-bar-stripes"></div>
         </div>
 
-        <!-- Main Window Content -->
-        <div class="window-content">
-            
-            <!-- Score and Status -->
-            <div class="status-bar">
-                <span>Score: <span id="score-display">0</span></span>
-                <span>Time: <span id="timer-display">0.0</span>s</span>
+        <!-- Main content area -->
+        <div class="content">
+            <!-- The math problem -->
+            <div id="problem-container">
+                7 &times; 6
             </div>
 
-            <!-- Feedback Display -->
-            <div id="feedback-display"></div>
+            <!-- The answer input -->
+            <input type="number" id="answer-input" inputmode="numeric" pattern="[0-9]*">
 
-            <!-- Problem Area -->
-            <div class="problem-container">
-                <span id="problem-text"></span>
-                <input type="number" id="answer-input" autocomplete="off" autofocus>
+            <!-- Feedback message -->
+            <div id="feedback">
+                Enter your answer and press Enter.
             </div>
+        </div>
 
-            <!-- Button Controls -->
-            <div class="button-container">
-                <button id="submit-button" class="system6-button">Submit Answer</button>
-                <button id="reset-button" class="system6-button">Reset All</button>
-            </div>
+        <!-- Info bar (Score and Timer) -->
+        <div class="info-bar">
+            <div id="score">Score: 0</div>
+            <div id="timer">Time: 0.0s</div>
+        </div>
 
-            <!-- Settings / Operand Weights -->
-            <div class="settings-container">
-                <div class="settings-title">Number Weights</div>
-                <div id="weight-table-container" class="weight-table">
-                    <!-- This will be populated by JavaScript -->
-                </div>
-            </div>
+        <!-- Button Bar -->
+        <div class="button-bar">
+            <button class="btn" id="reset-btn">Reset</button>
+        </div>
 
+        <!-- Weights Display -->
+        <div class="weights-container">
+            <h3>Number Weights</h3>
+            <table id="weights-table">
+                <!-- Header will be built by JS -->
+                <thead>
+                    <tr id="weights-header-row">
+                        <th>Num</th>
+                        <!-- More headers will be added by JS -->
+                    </tr>
+                </thead>
+                <!-- Body will be built by JS -->
+                <tbody id="weights-body">
+                    <!-- Rows will be added by JS -->
+                </tbody>
+            </table>
         </div>
     </div>
 
     <script>
-        // DOM Elements
-        const problemTextEl = document.getElementById('problem-text');
-        const answerInputEl = document.getElementById('answer-input');
-        const submitButton = document.getElementById('submit-button');
-        const resetButton = document.getElementById('reset-button');
-        const scoreDisplayEl = document.getElementById('score-display');
-        const feedbackDisplayEl = document.getElementById('feedback-display');
-        const timerDisplayEl = document.getElementById('timer-display');
-        const weightTableContainer = document.getElementById('weight-table-container');
-
-        // Game State
-        let score = 0;
-        // !! --- DATA STRUCTURE CHANGE --- !!
-        // operandWeights is now a nested object
-        let operandWeights = {}; // e.g., { addSub: {2: 5...}, mulDiv: {2: 5...} }
-        let problemWeights = {}; // e.g., {"8x7": 5, "42÷6": 8, "5+3": 1}
-        let currentProblem = null;
-        let problemTimerInterval = null;
-
-        // Constants
-        const MIN_NUM = 2;
-        const MAX_NUM = 9;
-        const TIME_LIMIT_SECONDS = 3.0;
-        const DEFAULT_WEIGHT = 5;
-        const MAX_WEIGHT = 10;
+        // --- Constants ---
+        const LOCAL_STORAGE_KEY = 'system6MathFactsState';
+        const TIME_LIMIT_SECONDS = 3.0; // Time limit for a "fast" answer
+        const INITIAL_OPERAND_WEIGHT = 5; // Default weight for a number
+        const INITIAL_PROBLEM_WEIGHT = 5; // Default weight for a problem
+        const WEIGHT_CHANGE_AMOUNT = 1;   // How much to change weight by
         const MIN_WEIGHT = 1;
+        const MAX_WEIGHT = 10;
+        
+        // --- NEW! Initial Game Range ---
+        // Change these to set the default starting range for a new game
+        const INITIAL_MIN_NUM = 2;
+        const INITIAL_MAX_NUM = 9;
 
-        // --- Initialization ---
+        // --- NEW! Master Game Range (Absolute boundaries) ---
+        // The game will "level up" within these boundaries
+        const MASTER_MIN_NUM = 2;
+        const MASTER_MAX_NUM = 12;
 
-        // NEW helper function to get default weights
-        function getDefaultOperandWeights() {
-            const weights = { addSub: {}, mulDiv: {} };
-            for (let i = MIN_NUM; i <= MAX_NUM; i++) {
-                weights.addSub[i] = DEFAULT_WEIGHT;
-                weights.mulDiv[i] = DEFAULT_WEIGHT;
-            }
-            return weights;
-        }
+        // --- Game State Variables ---
+        let currentScore = 0;
+        let operandWeights = { addSub: {}, mulDiv: {} };
+        let problemWeights = {}; // e.g., "7x6": 5
+        let currentProblem = {};
+        let lastProblemKey = ""; // To prevent immediate repeats
+        let startTime = 0;
+        let timerInterval = null;
+        let currentMinNum = INITIAL_MIN_NUM; // Current active min
+        let currentMaxNum = INITIAL_MAX_NUM; // Current active max
 
-        function init() {
-            loadFromStorage();
-            populateWeightTable();
-            addEventListeners();
-            nextProblem();
-            answerInputEl.focus();
-        }
+        // --- DOM Elements ---
+        const problemContainer = document.getElementById('problem-container');
+        const answerInput = document.getElementById('answer-input');
+        const feedback = document.getElementById('feedback');
+        const scoreDisplay = document.getElementById('score');
+        const timerDisplay = document.getElementById('timer');
+        const resetBtn = document.getElementById('reset-btn');
+        const weightsTableBody = document.getElementById('weights-body');
+        const weightsHeaderRow = document.getElementById('weights-header-row');
 
-        function loadFromStorage() {
-            const savedScore = localStorage.getItem('mathFactsScore');
-            const savedOperandWeights = localStorage.getItem('mathFactsOperandWeights');
-            const savedProblemWeights = localStorage.getItem('mathFactsProblemWeights');
+        // === Game Logic ===
 
-            score = savedScore ? parseInt(savedScore, 10) : 0;
-            problemWeights = savedProblemWeights ? JSON.parse(savedProblemWeights) : {};
-            
-            // !! --- LOGIC CHANGE --- !!
-            // Check for the new, nested structure. If not found, use default.
-            let saved = savedOperandWeights ? JSON.parse(savedOperandWeights) : null;
-            if (saved && saved.addSub && saved.mulDiv) {
-                operandWeights = saved;
+        /**
+         * Loads game state from localStorage or initializes a new game.
+         */
+        function loadGameState() {
+            const savedState = localStorage.getItem(LOCAL_STORAGE_KEY);
+            if (savedState) {
+                try {
+                    const state = JSON.parse(savedState);
+                    currentScore = state.currentScore || 0;
+                    // Fallback for users upgrading - set range from constants if not saved
+                    currentMinNum = state.currentMinNum || INITIAL_MIN_NUM;
+                    currentMaxNum = state.currentMaxNum || INITIAL_MAX_NUM;
+                    operandWeights = state.operandWeights;
+                    // problemWeights is deprecated for selection but kept for data structure consistency
+                    problemWeights = state.problemWeights || {};
+                    lastProblemKey = state.lastProblemKey || "";
+                    
+                    // Ensure weights exist for the current range (for users upgrading)
+                    ensureWeightsExist();
+
+                } catch (e) {
+                    console.error("Could not parse saved state, starting new game.", e);
+                    initializeNewGame();
+                }
             } else {
-                // Either no save or old format; create new default
-                operandWeights = getDefaultOperandWeights();
+                initializeNewGame();
             }
-            
             updateScoreDisplay();
-        }
-
-        function populateWeightTable() {
-            weightTableContainer.innerHTML = ''; // Clear existing table
-            for (let i = MIN_NUM; i <= MAX_NUM; i++) {
-                const cell = document.createElement('div');
-                cell.className = 'weight-cell';
-                
-                const label = document.createElement('label');
-                label.textContent = i;
-                
-                // !! --- UI CHANGE --- !!
-                // Create the new split display
-                const pairDisplay = document.createElement('div');
-                pairDisplay.className = 'weight-pair-display';
-                
-                // Add/Sub display
-                const addSubLabel = document.createElement('span');
-                addSubLabel.textContent = '+/−';
-                const addSubValue = document.createElement('span');
-                addSubValue.id = `weight-display-addSub-${i}`;
-                addSubValue.className = 'weight-value-display';
-                addSubValue.textContent = operandWeights.addSub[i];
-                
-                // Mul/Div display
-                const mulDivLabel = document.createElement('span');
-                mulDivLabel.textContent = '×÷';
-                const mulDivValue = document.createElement('span');
-                mulDivValue.id = `weight-display-mulDiv-${i}`;
-                mulDivValue.className = 'weight-value-display';
-                mulDivValue.textContent = operandWeights.mulDiv[i];
-                
-                pairDisplay.appendChild(addSubLabel);
-                pairDisplay.appendChild(addSubValue);
-                pairDisplay.appendChild(mulDivLabel);
-                pairDisplay.appendChild(mulDivValue);
-
-                cell.appendChild(label);
-                cell.appendChild(pairDisplay);
-                weightTableContainer.appendChild(cell);
-            }
-        }
-
-        function addEventListeners() {
-            const closeBox = document.getElementById('close-box');
-            closeBox.addEventListener('click', () => {
-                // Note: This may not work in all sandboxed browser environments
-                // It's mostly for visual/thematic effect
-                window.close();
-            });
-            
-            submitButton.addEventListener('click', checkAnswer);
-            answerInputEl.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    checkAnswer();
-                }
-            });
-            resetButton.addEventListener('click', resetGame);
-        }
-
-        // --- Game Loop ---
-
-        function nextProblem() {
-            clearFeedback();
-            answerInputEl.value = '';
-            answerInputEl.focus();
-
-            // Create a weighted pool of problems
-            const problemPool = [];
-            
-            // 1. Add known (weighted) problems from problemWeights
-            for (const key in problemWeights) {
-                const weight = problemWeights[key];
-                for (let i = 0; i < weight; i++) {
-                    problemPool.push(key);
-                }
-            }
-            
-            // 2. Add "NEW" problem tokens
-            // The number of "NEW" tokens is based on the sum of *all* operand weights
-            const addSubTotalWeight = Object.values(operandWeights.addSub).reduce((a, b) => a + b, 0);
-            const mulDivTotalWeight = Object.values(operandWeights.mulDiv).reduce((a, b) => a + b, 0);
-            const newProblemWeight = addSubTotalWeight + mulDivTotalWeight; // Total sum
-            
-            for (let i = 0; i < newProblemWeight; i++) {
-                problemPool.push("NEW");
-            }
-
-            // Pick a problem from the pool
-            const choice = problemPool[Math.floor(Math.random() * problemPool.length)];
-
-            if (choice === "NEW" || !choice) {
-                currentProblem = generateNewProblem();
-            } else {
-                currentProblem = parseProblemFromKey(choice);
-            }
-
-            // Display problem
-            const operatorSymbol = getOperatorSymbol(currentProblem.operator);
-            problemTextEl.textContent = `${currentProblem.op1} ${operatorSymbol} ${currentProblem.op2} =`;
-            
-            // Start timer
-            currentProblem.startTime = Date.now();
-            startTimerDisplay();
-        }
-
-        function generateNewProblem() {
-            const operators = ['+', '-', 'x', '÷'];
-            const operator = operators[Math.floor(Math.random() * operators.length)];
-            
-            // !! --- LOGIC CHANGE --- !!
-            // Determine which weight pool to use
-            const weightType = (operator === '+' || operator === '-') ? 'addSub' : 'mulDiv';
-            
-            let op1 = pickWeightedOperand(weightType);
-            let op2 = pickWeightedOperand(weightType);
-            let answer;
-
-            switch (operator) {
-                case '+':
-                    answer = op1 + op2;
-                    break;
-                case '-':
-                    // Ensure op1 is always greater than or equal to op2 for positive answers
-                    if (op2 > op1) {
-                        [op1, op2] = [op2, op1]; // Swap
-                    }
-                    answer = op1 - op2;
-                    break;
-                case 'x':
-                    answer = op1 * op2;
-                    break;
-                case '÷':
-                    // For division, generate product first to ensure whole numbers
-                    const quotient = pickWeightedOperand(weightType); // Will use 'mulDiv'
-                    op1 = op2 * quotient; // op1 is now the dividend
-                    answer = quotient;
-                    break;
-            }
-            return { op1, op2, operator, answer, startTime: null };
+            updateWeightTable();
+            nextProblem();
         }
         
-        function parseProblemFromKey(key) {
-            // Key is like "42÷6"
-            const match = key.match(/(\d+)([+\-x÷])(\d+)/);
-            if (!match) return generateNewProblem(); // Fallback
-            
-            const op1 = parseInt(match[1], 10);
-            const operator = match[2];
-            const op2 = parseInt(match[3], 10);
-            let answer;
-            
-            switch (operator) {
-                case '+': answer = op1 + op2; break;
-                case '-': answer = op1 - op2; break;
-                case 'x': answer = op1 * op2; break;
-                case '÷': answer = op1 / op2; break;
-            }
-            return { op1, op2, operator, answer, startTime: null };
+        /**
+         * Sets up a brand new game state.
+         */
+        function initializeNewGame() {
+            currentScore = 0;
+            currentMinNum = INITIAL_MIN_NUM;
+            currentMaxNum = INITIAL_MAX_NUM;
+            operandWeights = { addSub: {}, mulDiv: {} };
+            problemWeights = {};
+            lastProblemKey = "";
+            // Populate weights for the initial range
+            ensureWeightsExist();
         }
-
-        // !! --- LOGIC CHANGE --- !!
-        // Now requires a 'weightType' to know which pool to use
-        function pickWeightedOperand(weightType) {
-            const weightedArray = [];
-            const weights = operandWeights[weightType]; // Get the correct weight object
-
-            for (let num = MIN_NUM; num <= MAX_NUM; num++) {
-                const weight = weights[num];
-                for (let i = 0; i < weight; i++) {
-                    weightedArray.push(num);
+        
+        /**
+         * Ensures that all numbers in the current range (min to max)
+         * have a weight entry.
+         */
+        function ensureWeightsExist() {
+            for (let i = currentMinNum; i <= currentMaxNum; i++) {
+                if (!operandWeights.addSub[i]) {
+                    operandWeights.addSub[i] = INITIAL_OPERAND_WEIGHT;
+                }
+                if (!operandWeights.mulDiv[i]) {
+                    operandWeights.mulDiv[i] = INITIAL_OPERAND_WEIGHT;
                 }
             }
-            return weightedArray[Math.floor(Math.random() * weightedArray.length)];
         }
 
-        // --- Answer Handling ---
+        /**
+         * Saves the current game state to localStorage.
+         */
+        function saveGameState() {
+            const state = {
+                currentScore,
+                currentMinNum,
+                currentMaxNum,
+                operandWeights,
+                problemWeights,
+                lastProblemKey
+            };
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(state));
+        }
 
+        /**
+         * Resets the game to its initial state.
+         */
+        function resetGame() {
+            stopTimerDisplay(); // Fix for flickering timer bug!
+            
+            // Use window.prompt for a retro, blocking confirmation
+            const confirmation = window.prompt("Type 'RESET' to confirm you want to erase all progress.");
+            if (confirmation !== 'RESET') {
+                startTimerDisplay(); // Restart timer if they canceled
+                return;
+            }
+            
+            localStorage.removeItem(LOCAL_STORAGE_KEY);
+            initializeNewGame(); // Set up a fresh game using initial constants
+            saveGameState();
+            updateScoreDisplay();
+            updateWeightTable();
+            feedback.textContent = "Game reset. Good luck!";
+            feedback.className = '';
+            nextProblem();
+        }
+        
+        /**
+         * Creates a weighted list from a weight object.
+         * e.g., { "7": 3, "8": 1 } becomes ["7", "7", "7", "8"]
+         */
+        function createWeightedList(weights) {
+            const list = [];
+            for (const item in weights) {
+                const weight = weights[item] || 1;
+                for (let i = 0; i < weight; i++) {
+                    list.push(item);
+                }
+            }
+            return list;
+        }
+
+        /**
+         * Selects a random item from a list.
+         */
+        function selectRandomFromList(list) {
+            if (list.length === 0) return null;
+            const index = Math.floor(Math.random() * list.length);
+            return list[index];
+        }
+
+        /**
+         * Generates the next math problem.
+         */
+        function nextProblem() {
+            const operations = ['+', '-', 'x', '÷'];
+            let num1, num2, op;
+            
+            // Attempt to get a problem, ensuring no immediate repeats
+            let validProblemFound = false;
+            let attempts = 0;
+
+            while (!validProblemFound && attempts < 15) {
+                attempts++;
+                
+                // Generate a new problem based purely on Operand Weights
+                op = operations[Math.floor(Math.random() * operations.length)];
+                
+                let weightPool;
+                if (op === '+' || op === '-') {
+                    weightPool = createWeightedList(operandWeights.addSub);
+                } else {
+                    weightPool = createWeightedList(operandWeights.mulDiv);
+                }
+                
+                // Fallback if pool is empty
+                if (weightPool.length === 0) {
+                    num1 = currentMinNum;
+                    num2 = currentMinNum;
+                } else {
+                    num1 = parseInt(selectRandomFromList(weightPool));
+                    num2 = parseInt(selectRandomFromList(weightPool));
+                }
+
+                // --- Handle special division/subtraction logic ---
+                // We calculate answers here to check against lastProblemKey logic
+                let tempKey = "";
+                if (op === '÷') {
+                    const product = num1 * num2;
+                    if (product > 99 || product === 0) { 
+                        num1 = 8; num2 = 2; op = '÷'; // Fallback
+                    } else {
+                        num1 = product; // Dividend
+                        // num2 is Divisor
+                    }
+                } else if (op === '-') {
+                    if (num1 < num2) [num1, num2] = [num2, num1]; // Swap
+                }
+                
+                tempKey = `${num1}${op}${num2}`;
+                
+                if (tempKey !== lastProblemKey) {
+                    validProblemFound = true;
+                    // Calculate Answer for storage
+                    if (op === '÷') currentProblem = { num1, num2, op, answer: num1 / num2 };
+                    else if (op === '-') currentProblem = { num1, num2, op, answer: num1 - num2 };
+                    else if (op === '+') currentProblem = { num1, num2, op, answer: num1 + num2 };
+                    else if (op === 'x') currentProblem = { num1, num2, op, answer: num1 * num2 };
+                }
+            }
+            
+            // If we still didn't find a unique one (rare), just use whatever we have
+            if (!currentProblem.op) {
+                 // Safety net
+                 currentProblem = { num1: 2, num2: 2, op: '+', answer: 4 };
+            }
+
+            // Save this as the last problem
+            lastProblemKey = `${currentProblem.num1}${currentProblem.op}${currentProblem.num2}`;
+
+            // Display the problem
+            problemContainer.textContent = `${currentProblem.num1} ${currentProblem.op} ${currentProblem.num2}`;
+            answerInput.value = '';
+            answerInput.focus();
+            
+            // Start the timer
+            startTimerDisplay();
+            startTime = Date.now();
+        }
+
+        /**
+         * Checks the user's answer.
+         */
         function checkAnswer() {
             stopTimerDisplay();
-            const timeTaken = (Date.now() - currentProblem.startTime) / 1000;
-            const userAnswer = parseInt(answerInputEl.value, 10);
-            const problemKey = `${currentProblem.op1}${currentProblem.operator}${currentProblem.op2}`;
-            
-            // Ensure problem has a default weight
-            if (problemWeights[problemKey] === undefined) {
-                problemWeights[problemKey] = DEFAULT_WEIGHT;
+            const answerTime = (Date.now() - startTime) / 1000.0;
+            const userAnswer = parseInt(answerInput.value);
+
+            if (isNaN(userAnswer)) {
+                feedback.textContent = "Please enter a number.";
+                feedback.className = 'feedback-incorrect';
+                startTimerDisplay(); // Restart timer to let them try again
+                return;
             }
 
-            // !! --- LOGIC CHANGE --- !!
-            // Determine weightType and which operands to update
-            const weightType = (currentProblem.operator === '+' || currentProblem.operator === '-') ? 'addSub' : 'mulDiv';
+            const isCorrect = (userAnswer === currentProblem.answer);
+            const isFast = (answerTime <= TIME_LIMIT_SECONDS);
             
-            // For Division, we update op2 (divisor) and answer (quotient)
-            // For all others, we update op1 and op2
-            const opA = (currentProblem.operator === '÷') ? currentProblem.op2 : currentProblem.op1;
-            const opB = (currentProblem.operator === '÷') ? currentProblem.answer : currentProblem.op2;
+            let scoreChange = 0;
+            const baseScore = (currentProblem.num1 + currentProblem.num2) / 2; // Base score part
 
-            if (userAnswer === currentProblem.answer) {
-                // CORRECT
-                const points = Math.max(2, (currentProblem.op1 + currentProblem.op2) / 2);
-                score += points;
-                
-                if (timeTaken <= TIME_LIMIT_SECONDS) {
-                    // Correct and Fast
-                    showFeedback(`Correct! +${Math.round(points)}`, "correct");
-                    problemWeights[problemKey] = Math.max(MIN_WEIGHT, problemWeights[problemKey] - 1);
-                    updateOperandWeight(opA, -1, weightType); // Adjust operand weight
-                    updateOperandWeight(opB, -1, weightType); // Adjust operand weight
+            if (isCorrect) {
+                if (isFast) {
+                    feedback.textContent = `Correct! (${answerTime.toFixed(1)}s)`;
+                    feedback.className = 'feedback-correct';
+                    scoreChange = Math.max(2, baseScore); // Full score
+                    adjustWeights(currentProblem, false); // Decrease weight
                 } else {
-                    // Correct but Slow
-                    showFeedback(`Correct, but slow. +${Math.round(points)}`, "slow");
-                    problemWeights[problemKey] = Math.min(MAX_WEIGHT, problemWeights[problemKey] + 1);
-                    updateOperandWeight(opA, 1, weightType); // Adjust operand weight
-                    updateOperandWeight(opB, 1, weightType); // Adjust operand weight
+                    feedback.textContent = `Correct, but slow. (${answerTime.toFixed(1)}s)`;
+                    feedback.className = 'feedback-correct';
+                    // Half score for slow, min 1
+                    scoreChange = Math.max(1, baseScore / 2); 
+                    // MODIFIED: Do NOT adjust weights if correct but slow
+                    // adjustWeights(currentProblem, true); 
                 }
-
             } else {
-                // INCORRECT
-                const points = Math.max(1, (currentProblem.op1 + currentProblem.op2) / 4);
-                score = Math.max(0, score - points); // Don't go below zero
-                showFeedback(`Incorrect. Was ${currentProblem.answer}. -${Math.round(points)}`, "incorrect");
-                problemWeights[problemKey] = Math.min(MAX_WEIGHT, problemWeights[problemKey] + 2); // Increase weight more
-                updateOperandWeight(opA, 2, weightType); // Adjust operand weight
-                updateOperandWeight(opB, 2, weightType); // Adjust operand weight
+                feedback.textContent = `Incorrect. The answer was ${currentProblem.answer}.`;
+                feedback.className = 'feedback-incorrect';
+                scoreChange = -Math.max(1, baseScore / 4); // Subtract score
+                adjustWeights(currentProblem, true); // Increase weight
             }
 
-            updateWeightTableDisplay(); // Update the visual table
+            // Apply score change
+            currentScore = Math.max(0, currentScore + scoreChange);
             updateScoreDisplay();
-            saveToStorage();
+            
+            // Check for level up
+            checkLevelUp();
 
-            // Disable input while feedback is shown
-            answerInputEl.disabled = true;
-            submitButton.disabled = true;
-
-            setTimeout(() => {
-                answerInputEl.disabled = false;
-                submitButton.disabled = false;
-                nextProblem();
-            }, 1500); // Wait 1.5 seconds before next problem
+            // Update UI and save
+            updateWeightTable();
+            saveGameState();
+            
+            // Load next problem after a short delay
+            setTimeout(nextProblem, 1200);
         }
 
-        // --- UI & Utility Functions ---
+        /**
+         * Adjusts the weights for the problem and its operands.
+         * @param {object} problem - The problem that was just answered.
+         * @param {boolean} increase - True to increase weight, false to decrease.
+         */
+        function adjustWeights(problem, increase) {
+            const { num1, num2, op } = problem;
+            const change = increase ? WEIGHT_CHANGE_AMOUNT : -WEIGHT_CHANGE_AMOUNT;
 
-        function startTimerDisplay() {
-            const startTime = Date.now();
-            timerDisplayEl.textContent = "0.0";
+            // 1. Adjust Problem Weight (Deprecated for selection, but kept for structure)
+            const problemKey = `${num1}${op}${num2}`;
+            if (!problemWeights[problemKey]) {
+                problemWeights[problemKey] = INITIAL_PROBLEM_WEIGHT;
+            }
+            problemWeights[problemKey] = Math.max(MIN_WEIGHT, Math.min(MAX_WEIGHT, problemWeights[problemKey] + change));
+
+            // 2. Adjust Operand Weights
+            let weightPool;
+            if (op === '+' || op === '-') {
+                weightPool = operandWeights.addSub;
+            } else {
+                weightPool = operandWeights.mulDiv;
+            }
             
-            problemTimerInterval = setInterval(() => {
-                const elapsed = (Date.now() - startTime) / 1000;
-                timerDisplayEl.textContent = elapsed.toFixed(1);
+            // Only adjust weights for numbers in our *master* range
+            if (num1 >= MASTER_MIN_NUM && num1 <= MASTER_MAX_NUM) {
+                 weightPool[num1] = Math.max(MIN_WEIGHT, Math.min(MAX_WEIGHT, weightPool[num1] + change));
+            }
+            if (num2 >= MASTER_MIN_NUM && num2 <= MASTER_MAX_NUM) {
+                // For division, the 2nd num is the one we want to practice
+                let numToAdjust = (op === '÷') ? num2 : num2; 
+                if (op === '÷' && problem.num1 === 8 && problem.num2 === 2) {
+                    // Handle fallback case
+                } else if (op === '÷') {
+                    numToAdjust = problem.answer; // e.g., for 12 / 6 = 2, adjust 6 and 2
+                     // Check if numToAdjust is within valid range before accessing
+                     if (numToAdjust >= MASTER_MIN_NUM && numToAdjust <= MASTER_MAX_NUM) {
+                         weightPool[numToAdjust] = Math.max(MIN_WEIGHT, Math.min(MAX_WEIGHT, weightPool[numToAdjust] + change));
+                     }
+                }
+                
+                weightPool[num2] = Math.max(MIN_WEIGHT, Math.min(MAX_WEIGHT, weightPool[num2] + change));
+            }
+        }
+        
+        /**
+         * Checks if the student has mastered the current set and can level up.
+         */
+        function checkLevelUp() {
+            if (currentMaxNum >= MASTER_MAX_NUM) {
+                return; // Already at max level
+            }
+
+            let allMastered = true;
+            for (let i = currentMinNum; i <= currentMaxNum; i++) {
+                if (operandWeights.addSub[i] > MIN_WEIGHT || operandWeights.mulDiv[i] > MIN_WEIGHT) {
+                    allMastered = false;
+                    break;
+                }
+            }
+
+            if (allMastered) {
+                currentMaxNum++; // Level up!
+                ensureWeightsExist(); // Add the new number to the pool
+                feedback.textContent = `Level Up! Now practicing facts up to ${currentMaxNum}!`;
+                feedback.className = 'feedback-correct';
+                updateWeightTable(); // Re-draw table with new number
+            }
+        }
+
+        // === UI Functions ===
+
+        /**
+         * Starts the visual timer display.
+         */
+        function startTimerDisplay() {
+            stopTimerDisplay(); // Clear any existing timer
+            timerInterval = setInterval(() => {
+                const elapsed = (Date.now() - startTime) / 1000.0;
+                timerDisplay.textContent = `Time: ${elapsed.toFixed(1)}s`;
             }, 100);
         }
 
+        /**
+         * Stops the visual timer display.
+         */
         function stopTimerDisplay() {
-            clearInterval(problemTimerInterval);
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
         }
 
-        function showFeedback(message, type) {
-            feedbackDisplayEl.textContent = message;
-            feedbackDisplayEl.className = `feedback-${type}`;
-        }
-
-        function clearFeedback() {
-            feedbackDisplayEl.textContent = '';
-            feedbackDisplayEl.className = '';
-        }
-
+        /**
+         * Updates the score display.
+         */
         function updateScoreDisplay() {
-            scoreDisplayEl.textContent = Math.round(score);
+            scoreDisplay.textContent = `Score: ${Math.floor(currentScore)}`;
         }
 
-        // !! --- LOGIC CHANGE --- !!
-        // Now updates weight in the correct pool (addSub or mulDiv)
-        function updateOperandWeight(operand, change, weightType) {
-            // Only adjust weights for numbers in our range
-            // Check if operand is valid (e.g. for 42 / 6, answer is 7, which is fine)
-            // But if 4 / 2, answer is 2. If 3 / 1, answer is 3.
-            // We need to handle cases where an operand might be outside the 2-9 range (e.g., 1, 10, 11, 12)
-            if (operand < MIN_NUM || operand > MAX_NUM) return;
-            // Also need to check if the weightType and operand exist
-            if (!operandWeights[weightType] || operandWeights[weightType][operand] === undefined) return;
+        /**
+         * Re-draws the weights table based on current state.
+         */
+        function updateWeightTable() {
+            // Clear old table
+            weightsHeaderRow.innerHTML = "<th>Num</th>"; // Reset header
+            weightsTableBody.innerHTML = ""; // Reset body
+
+            // Build Header
+            weightsHeaderRow.innerHTML = `
+                <th>Num</th>
+                <th>+ / -</th>
+                <th>&times; / &divide;</th>
+            `;
             
-            let currentWeight = operandWeights[weightType][operand];
-            currentWeight += change;
-            // Clamp value
-            if (currentWeight > MAX_WEIGHT) currentWeight = MAX_WEIGHT;
-            if (currentWeight < MIN_WEIGHT) currentWeight = MIN_WEIGHT;
-            operandWeights[weightType][operand] = currentWeight;
-        }
+            // Build Body
+            for (let i = currentMinNum; i <= currentMaxNum; i++) {
+                const row = document.createElement('tr');
+                const addSubWeight = operandWeights.addSub[i] || INITIAL_OPERAND_WEIGHT;
+                const mulDivWeight = operandWeights.mulDiv[i] || INITIAL_OPERAND_WEIGHT;
 
-        // !! --- UI CHANGE --- !!
-        // Updates both values in the new split display
-        function updateWeightTableDisplay() {
-            for (let i = MIN_NUM; i <= MAX_NUM; i++) {
-                const addSubEl = document.getElementById(`weight-display-addSub-${i}`);
-                const mulDivEl = document.getElementById(`weight-display-mulDiv-${i}`);
-                
-                if (addSubEl) {
-                    addSubEl.textContent = operandWeights.addSub[i];
-                }
-                if (mulDivEl) {
-                    mulDivEl.textContent = operandWeights.mulDiv[i];
-                }
+                row.innerHTML = `
+                    <td>${i}</td>
+                    <td class="${addSubWeight === MIN_WEIGHT ? 'weight-low' : ''}">${addSubWeight}</td>
+                    <td class="${mulDivWeight === MIN_WEIGHT ? 'weight-low' : ''}">${mulDivWeight}</td>
+                `;
+                weightsTableBody.appendChild(row);
             }
         }
+
+        // === Event Listeners ===
         
-        function getOperatorSymbol(op) {
-            if (op === 'x') return '×';
-            if (op === '÷') return '÷';
-            return op;
-        }
-
-        function saveToStorage() {
-            localStorage.setItem('mathFactsScore', score);
-            localStorage.setItem('mathFactsOperandWeights', JSON.stringify(operandWeights));
-            localStorage.setItem('mathFactsProblemWeights', JSON.stringify(problemWeights));
-        }
-
-        function resetGame() {
-            // A simple confirmation for a destructive action
-            const confirmation = window.prompt("Type 'RESET' to confirm you want to erase all scores and weights.");
-            if (confirmation === 'RESET') {
-                localStorage.removeItem('mathFactsScore');
-                localStorage.removeItem('mathFactsOperandWeights');
-                localStorage.removeItem('mathFactsProblemWeights');
-                
-                // Reset runtime state
-                score = 0;
-                problemWeights = {};
-                // !! --- LOGIC CHANGE --- !!
-                operandWeights = getDefaultOperandWeights(); // Use new default
-                
-                // Reload UI
-                updateScoreDisplay();
-                populateWeightTable(); // Re-builds the new split table
-                showFeedback("Game Reset!", "correct");
-                
-                // Clear the feedback after a moment and start new game
-                setTimeout(() => {
-                    clearFeedback();
-                    nextProblem();
-                }, 1500);
-
-            } else {
-                showFeedback("Reset Canceled.", "slow");
-                setTimeout(clearFeedback, 1500);
+        // Check answer on 'Enter' key
+        answerInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                checkAnswer();
             }
-        }
+        });
 
-        // Start the application
-        init();
+        // Reset button
+        resetBtn.addEventListener('click', resetGame);
+
+        // --- Start the app ---
+        loadGameState();
 
     </script>
 </body>
