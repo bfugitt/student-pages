@@ -7,8 +7,7 @@
     <!-- 
       Using a retro pixel font.
       "VT323" is a good open-source option that mimics old terminal fonts.
-    -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
+    --><link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
 
@@ -70,8 +69,8 @@
             margin-right: 8px;
         }
 
-        /* Close box 'X' */
-        .close-box {
+        /* Control Boxes (Close/Skip and Pause/Play) */
+        .close-box, .pause-box {
             width: 18px;
             height: 18px;
             border: 2px solid #000;
@@ -79,9 +78,20 @@
             text-align: center;
             line-height: 14px;
             font-weight: bold;
-            cursor: default;
+            cursor: pointer;
             font-size: 16px;
         }
+        .close-box:active, .pause-box:active {
+            box-shadow: 1px 1px 0px #000;
+            transform: translate(1px, 1px);
+        }
+        /* Pause box styling - using a simple icon for visibility */
+        .pause-box {
+            margin-left: 4px; /* Space it slightly from the stripes */
+            font-size: 14px;
+            line-height: 16px;
+        }
+
 
         /* Main content area */
         .content {
@@ -98,6 +108,22 @@
             height: 80px; /* Prevent layout shift */
             line-height: 80px;
             letter-spacing: 4px;
+            transition: background-color 0.05s ease-out, color 0.05s ease-out; /* Smooth transition for color changes too */
+        }
+        /* Style for the correction display */
+        .correction-display {
+            background-color: #000 !important; /* Force black background */
+            color: #fff !important; /* Force white text */
+            transition: none; /* No transition for this specific state to be instant */
+        }
+
+
+        /* Input and Check Button Alignment */
+        #input-controls {
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            gap: 10px;
         }
 
         /* Answer input field */
@@ -131,9 +157,6 @@
         }
         .feedback-incorrect {
             color: #000; /* Keeping it monochrome */
-            /* Maybe an invert? */
-            /* background: #000;
-            color: #fff; */
         }
 
         /* Info bar for score and timer */
@@ -201,60 +224,51 @@
 </head>
 <body>
 
-    <!-- Main application window -->
-    <div class="window">
-        <!-- Title bar -->
-        <div class="title-bar">
-            <div class="close-box">&times;</div>
+    <!-- Main application window --><div class="window">
+        <!-- Title bar --><div class="title-bar">
+            <!-- Close box now acts as a skip/cancel button (Left) --><div class="close-box" id="close-box-btn">&times;</div>
             <div class="title-bar-stripes"></div>
             <div>System 6 Math Facts</div>
             <div class="title-bar-stripes"></div>
+            <!-- NEW Pause/Play button (Right) --><div class="pause-box" id="pause-box-btn">||</div>
         </div>
 
-        <!-- Main content area -->
-        <div class="content">
-            <!-- The math problem -->
-            <div id="problem-container">
+        <!-- Main content area --><div class="content">
+            <!-- The math problem --><div id="problem-container">
                 7 &times; 6
             </div>
 
-            <!-- The answer input -->
-            <input type="number" id="answer-input" inputmode="numeric" pattern="[0-9]*">
+            <!-- Input and new Check button container --><div id="input-controls">
+                <!-- The answer input --><input type="number" id="answer-input" inputmode="numeric" pattern="[0-9]*">
+                
+                <!-- Manual Enter Button for mobile use --><button class="btn" id="check-answer-btn">Check</button>
+            </div>
 
-            <!-- Feedback message -->
-            <div id="feedback">
+            <!-- Feedback message --><div id="feedback">
                 Enter your answer and press Enter.
             </div>
         </div>
 
-        <!-- Info bar (Score and Timer) -->
-        <div class="info-bar">
+        <!-- Info bar (Score and Timer) --><div class="info-bar">
             <div id="score">Score: 0</div>
-            <!-- NEW: Total Time Display in Minutes:Seconds -->
             <div id="total-time">Total Time: 00:00</div>
             <div id="timer">Time: 0.0s</div>
         </div>
 
-        <!-- Button Bar -->
-        <div class="button-bar">
+        <!-- Button Bar --><div class="button-bar">
             <button class="btn" id="reset-btn">Reset</button>
         </div>
 
-        <!-- Weights Display -->
-        <div class="weights-container">
+        <!-- Weights Display --><div class="weights-container">
             <h3>Number Weights</h3>
             <table id="weights-table">
-                <!-- Header will be built by JS -->
-                <thead>
+                <!-- Header will be built by JS --><thead>
                     <tr id="weights-header-row">
                         <th>Num</th>
-                        <!-- More headers will be added by JS -->
-                    </tr>
+                        <!-- More headers will be added by JS --></tr>
                 </thead>
-                <!-- Body will be built by JS -->
-                <tbody id="weights-body">
-                    <!-- Rows will be added by JS -->
-                </tbody>
+                <!-- Body will be built by JS --><tbody id="weights-body">
+                    <!-- Rows will be added by JS --></tbody>
             </table>
         </div>
     </div>
@@ -268,7 +282,9 @@
         const WEIGHT_CHANGE_AMOUNT = 1;   // How much to change weight by
         const MIN_WEIGHT = 1;
         const MAX_WEIGHT = 10;
-        
+        const NEXT_PROBLEM_DELAY_MS = 600; // Time to wait after answering
+        const CORRECTION_DISPLAY_DURATION_MS = 900; // Duration for black box correction display
+
         // --- Game Range Settings ---
         // The numbers used when a game is first started
         const INITIAL_MIN_NUM = 2;
@@ -286,10 +302,11 @@
         let lastProblemKey = ""; // To prevent immediate repeats
         let startTime = 0;
         let timerInterval = null; // Per-problem timer
-        let totalTimeSeconds = 0; // NEW: Total accumulated time in seconds
-        let totalTimeInterval = null; // NEW: Interval for total time updates
-        
-        // NEW: Separate max numbers for each operation type to allow independent progression
+        let totalTimeSeconds = 0; // Total accumulated time in seconds
+        let totalTimeInterval = null; // Interval for total time updates
+        let isPaused = false; 
+
+        // Separate max numbers for each operation type to allow independent progression
         let minNumActive = INITIAL_MIN_NUM; 
         let maxNumAddSub = INITIAL_MAX_NUM;
         let maxNumMulDiv = INITIAL_MAX_NUM;
@@ -303,7 +320,12 @@
         const resetBtn = document.getElementById('reset-btn');
         const weightsTableBody = document.getElementById('weights-body');
         const weightsHeaderRow = document.getElementById('weights-header-row');
-        const totalTimeDisplay = document.getElementById('total-time'); // NEW element
+        const totalTimeDisplay = document.getElementById('total-time'); 
+        
+        // Control buttons
+        const checkAnswerBtn = document.getElementById('check-answer-btn');
+        const closeBoxBtn = document.getElementById('close-box-btn');
+        const pauseBoxBtn = document.getElementById('pause-box-btn'); 
 
         // === Game Logic ===
 
@@ -326,7 +348,7 @@
                     operandWeights = state.operandWeights;
                     problemWeights = state.problemWeights || {};
                     lastProblemKey = state.lastProblemKey || "";
-                    totalTimeSeconds = state.totalTimeSeconds || 0; // NEW: Load total time
+                    totalTimeSeconds = state.totalTimeSeconds || 0; 
                     
                     // Ensure weights exist for the current range
                     ensureWeightsExist();
@@ -356,7 +378,8 @@
             operandWeights = { addSub: {}, mulDiv: {} };
             problemWeights = {};
             lastProblemKey = "";
-            totalTimeSeconds = 0; // NEW: Reset total time
+            totalTimeSeconds = 0; // Reset total time
+            isPaused = false;
             // Populate weights for the initial range
             ensureWeightsExist();
         }
@@ -392,7 +415,7 @@
                 operandWeights,
                 problemWeights,
                 lastProblemKey,
-                totalTimeSeconds // NEW: Save total time
+                totalTimeSeconds 
             };
             localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(state));
         }
@@ -402,13 +425,13 @@
          */
         function resetGame() {
             stopTimerDisplay(); 
-            stopTotalTimeInterval(); // NEW: Stop total time interval
+            stopTotalTimeInterval(); // Stop total time interval
             
             // Use window.prompt for a retro, blocking confirmation
             const confirmation = window.prompt("Type 'RESET' to confirm you want to erase all progress.");
             if (confirmation !== 'RESET') {
                 startTimerDisplay(); 
-                startTotalTimeInterval(); // NEW: Restart total time interval
+                startTotalTimeInterval(); // Restart total time interval
                 return;
             }
             
@@ -416,11 +439,11 @@
             initializeNewGame(); 
             saveGameState();
             updateScoreDisplay();
-            updateTotalTimeDisplay(); // NEW: Reset display
+            updateTotalTimeDisplay(); // Reset display
             updateWeightTable();
             feedback.textContent = "Game reset. Good luck!";
             feedback.className = '';
-            startTotalTimeInterval(); // NEW: Restart total time for the new session
+            startTotalTimeInterval(); // Restart total time for the new session
             nextProblem();
         }
         
@@ -452,6 +475,9 @@
          * Generates the next math problem.
          */
         function nextProblem() {
+            // Guard against starting a new problem if paused
+            if (isPaused) return;
+
             const operations = ['+', '-', 'x', '÷'];
             let num1, num2, op;
             
@@ -485,8 +511,6 @@
                 let tempKey = "";
                 if (op === '÷') {
                     // Division problem generation: Dividend = Factor * Quotient
-                    // num1 (factor) * num2 (factor) = product
-                    // Product is dividend (num1), num2 is divisor, original num1 is answer
                     const product = num1 * num2;
                     if (product > 99 || product === 0 || num2 < minNumActive) { 
                         // If the resulting problem is too large, or we divide by a number smaller than min, skip/fallback
@@ -494,7 +518,6 @@
                     } else {
                         const answer = num1; 
                         num1 = product; // Dividend
-                        // num2 is Divisor
                         // We must ensure the answer (original num1) is also in the active range
                         if(answer < minNumActive || answer > maxNum) continue; 
                         currentProblem = { num1, num2, op, answer };
@@ -525,6 +548,8 @@
 
             // Display the problem
             problemContainer.textContent = `${currentProblem.num1} ${currentProblem.op} ${currentProblem.num2}`;
+            // Reset background color in case it was flashed
+            problemContainer.classList.remove('correction-display'); // Remove the correction class
             answerInput.value = '';
             answerInput.focus();
             
@@ -537,6 +562,9 @@
          * Checks the user's answer.
          */
         function checkAnswer() {
+            // Guard against checking answer if paused
+            if (isPaused) return;
+            
             stopTimerDisplay();
             const answerTime = (Date.now() - startTime) / 1000.0;
             const userAnswer = parseInt(answerInput.value);
@@ -586,8 +614,99 @@
             updateWeightTable();
             saveGameState();
             
-            // This is the delay before the next problem loads (1.2 seconds)
-            setTimeout(nextProblem, 600);
+            // NEW LOGIC: Branch execution based on correctness
+            if (isCorrect) {
+                // Correct: just wait and load next problem
+                setTimeout(nextProblem, NEXT_PROBLEM_DELAY_MS); 
+            } else {
+                // Incorrect: display correction then load next problem
+                displayCorrection(currentProblem);
+            }
+        }
+        
+        /**
+         * Skips the current problem, resets the timer, and loads a new problem.
+         * Used by the close box 'X'.
+         */
+        function cancelProblem() {
+            // Guard against skipping if paused
+            if (isPaused) return;
+
+            stopTimerDisplay();
+            answerInput.value = '';
+            feedback.textContent = "Problem skipped. Loading next one...";
+            feedback.className = '';
+            
+            // Load next problem immediately (no delay)
+            nextProblem();
+        }
+
+        /**
+         * Toggles the pause state of the game.
+         */
+        function togglePause() {
+            if (isPaused) {
+                // RESUME
+                isPaused = false;
+                pauseBoxBtn.textContent = '||'; // Change button back to Pause icon
+                
+                // Restart total time interval
+                startTotalTimeInterval(); 
+                updateTotalTimeDisplay(); // Restore total time display
+                
+                feedback.textContent = "Resumed. Get ready!";
+                feedback.className = '';
+                
+                // Ensure correction class is removed if paused during a correction display
+                problemContainer.classList.remove('correction-display');
+                
+                // Load the next problem immediately (as requested)
+                setTimeout(nextProblem, 50); 
+            } else {
+                // PAUSE
+                isPaused = true;
+                
+                // Stop all timers
+                stopTimerDisplay(); 
+                stopTotalTimeInterval(); 
+                
+                // Update UI elements
+                problemContainer.textContent = '- PAUSED -'; // Clear problem display
+                problemContainer.classList.remove('correction-display'); // Clear any potential correction styling
+                problemContainer.style.backgroundColor = 'transparent'; // Clear any potential flash color
+                answerInput.value = '';
+                answerInput.blur(); // Remove focus so the keyboard disappears on mobile
+                
+                pauseBoxBtn.textContent = '▶'; // Change button to Play icon
+                feedback.textContent = "Game Paused";
+                feedback.className = '';
+                timerDisplay.textContent = "Time: PAUSED";
+                totalTimeDisplay.textContent = 'Total Time: PAUSED'; // Indicate paused state
+            }
+        }
+
+        /**
+         * Displays the correct answer as a black box with white text.
+         * @param {object} problem - The current problem object.
+         */
+        function displayCorrection(problem) {
+            const correctEquation = `${problem.num1} ${problem.op} ${problem.num2} = ${problem.answer}`;
+            
+            // Temporarily disable the input field during correction display
+            answerInput.disabled = true;
+
+            // Apply the correction display styles
+            problemContainer.classList.add('correction-display');
+            problemContainer.textContent = correctEquation;
+
+            setTimeout(() => {
+                // After the duration, remove styles and re-enable input
+                problemContainer.classList.remove('correction-display');
+                answerInput.disabled = false;
+                
+                // Proceed to the next problem after the normal delay
+                setTimeout(nextProblem, NEXT_PROBLEM_DELAY_MS);
+            }, CORRECTION_DISPLAY_DURATION_MS);
         }
 
         /**
@@ -663,7 +782,7 @@
             return false;
         }
 
-        // === UI Functions ===
+        // === UI Functions (Timer and Display) ===
 
         /**
          * Starts the visual timer display.
@@ -687,7 +806,7 @@
         }
         
         /**
-         * NEW: Starts the total time accumulator.
+         * Starts the total time accumulator.
          */
         function startTotalTimeInterval() {
             if (!totalTimeInterval) {
@@ -699,7 +818,7 @@
         }
 
         /**
-         * NEW: Stops the total time accumulator.
+         * Stops the total time accumulator.
          */
         function stopTotalTimeInterval() {
             if (totalTimeInterval) {
@@ -709,7 +828,7 @@
         }
         
         /**
-         * NEW: Updates the total time display in M:SS format.
+         * Updates the total time display in M:SS format.
          */
         function updateTotalTimeDisplay() {
             const totalSec = Math.floor(totalTimeSeconds);
@@ -776,12 +895,21 @@
 
         // === Event Listeners ===
         
-        // Check answer on 'Enter' key
+        // Check answer on 'Enter' key (for desktop)
         answerInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 checkAnswer();
             }
         });
+        
+        // Manual 'Check' button for mobile users
+        checkAnswerBtn.addEventListener('click', checkAnswer);
+        
+        // Close box 'X' to skip/cancel the current problem
+        closeBoxBtn.addEventListener('click', cancelProblem);
+
+        // Pause/Play toggle
+        pauseBoxBtn.addEventListener('click', togglePause);
 
         // Reset button
         resetBtn.addEventListener('click', resetGame);
