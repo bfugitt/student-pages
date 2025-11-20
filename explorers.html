@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Alta California Expedition</title>
+    <!-- Load Tailwind CSS (although we'll heavily override it for the retro look) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Retro Apple II / Oregon Trail Style */
+        body {
+            background-color: #000;
+            color: #0F0; /* Bright green text */
+            font-family: 'VT323', monospace; /* A common retro font style */
+            font-size: 1.2rem;
+            line-height: 1.4;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .game-container {
+            width: 100%;
+            max-width: 900px;
+            border: 4px solid #0F0;
+            padding: 20px;
+            box-shadow: 0 0 15px #0F0;
+            border-radius: 4px;
+            /* Flex layout to manage main and modal screens */
+            display: flex;
+            flex-direction: column;
+            position: relative; /* For absolutely positioned screens */
+            min-height: 550px; /* Ensure space for content */
+        }
+
+        .status-box, .log-box, .input-box, .start-screen, .minigame-screen {
+            border: 2px solid #080;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 2px;
+            background-color: rgba(0, 50, 0, 0.2);
+        }
+
+        /* Full screen overlay for Start and MiniGame screens */
+        .full-screen-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            z-index: 500;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            text-align: center;
+            margin-bottom: 20px;
+            text-shadow: 0 0 5px #0F0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            border-bottom: 1px dashed #080;
+            margin-top: 0;
+            padding-bottom: 5px;
+            margin-bottom: 10px;
+        }
+
+        button {
+            background-color: #0F0;
+            color: #000;
+            border: none;
+            padding: 8px 15px;
+            cursor: pointer;
+            text-transform: uppercase;
+            font-family: inherit;
+            font-size: 1.1rem;
+            margin-right: 10px;
+            transition: all 0.1s;
+            border-radius: 2px;
+        }
+
+        button:hover {
+            background-color: #FFF;
+            color: #000;
+        }
+
+        button:disabled {
+            background-color: #333;
+            color: #666;
+            cursor: not-allowed;
+        }
+
+        /* Map/Progress Bar Style */
+        .map-progress {
+            background-color: #333;
+            border: 1px solid #0F0;
+            height: 20px;
+            margin-top: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .map-fill {
+            height: 100%;
+            background-color: #0F0;
+            transition: width 0.5s linear;
+        }
+
+        .map-icon {
+            position: absolute;
+            top: 0;
+            height: 100%;
+            text-align: center;
+            line-height: 18px;
+            font-weight: bold;
+            color: #000;
+        }
+
+        /* Hunting Mini-Game Specific Styles */
+        #minigame-canvas {
+            width: 100%;
+            height: 150px;
+            background-color: rgba(10, 50, 10, 0.8);
+            border: 2px dashed #0F0;
+            cursor: crosshair;
+            position: relative;
+        }
+        .moving-target {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 40px; /* Increased size for easier hitting */
+            /* Animation for continuous movement - Slower speed (3s) for easier hitting */
+            animation: move-target 3s linear infinite alternate;
+        }
+        @keyframes move-target {
+            0% { left: 0%; }
+            100% { left: 95%; }
+        }
+
+        /* Message Box Modal */
+        .message-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .message-content {
+            background-color: #000;
+            border: 5px solid #0F0;
+            padding: 30px;
+            max-width: 400px;
+            text-align: center;
+            box-shadow: 0 0 20px #0F0;
+        }
+    </style>
+    <!-- Use a retro font if available, or fall back to monospace -->
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div class="game-container">
+    <h1 id="game-title">The Alta California Expedition</h1>
+
+    <!-- Explorer Selection/Start Screen -->
+    <div id="start-screen" class="full-screen-overlay start-screen">
+        <h2>Choose Your Explorer (and destiny!)</h2>
+        <div class="flex flex-col md:flex-row gap-4 p-4">
+            <button onclick="selectExplorer('Cabrillo')">
+                <span class="text-2xl">J.R. Cabrillo (1542)</span><br>
+                Sea Route: Storms & Navigation
+            </button>
+            <button onclick="selectExplorer('Drake')">
+                <span class="text-2xl">Sir Francis Drake (1579)</span><br>
+                Privateer: Spanish Pursuit & Repairs
+            </button>
+            <button onclick="selectExplorer('Portolá')">
+                <span class="text-2xl">G. de Portolá (1769)</span><br>
+                Land Route: Desert & Disease
+            </button>
+        </div>
+        <p class="mt-8 text-yellow-400">Your explorer choice affects your challenges, goals, and resource needs.</p>
+    </div>
+
+    <!-- Main Game UI -->
+    <div id="main-game-ui" class="hidden">
+        <!-- Game Status Panel -->
+        <div id="status-display" class="status-box">
+            <div class="flex justify-between flex-wrap gap-4">
+                <div><strong>Explorer:</strong> <span id="explorer-name"></span></div>
+                <div><strong>Distance:</strong> <span id="distance-traveled">0</span> / <span id="distance-total"></span> mi</div>
+                <div><strong>Health:</strong> <span id="health-value">100%</span></div>
+                <div><strong>Supplies:</strong> <span id="supplies-value">200 units</span></div>
+                <div><strong>Water:</strong> <span id="water-value">100 units</span></div>
+            </div>
+            <div class="map-progress">
+                <div id="map-fill" class="map-fill"></div>
+                <div class="map-icon" style="left: 0;">START</div>
+                <div class="map-icon" style="right: 0; color: #000;" id="goal-label"></div>
+                <div class="map-icon" id="player-icon" style="width: 20px; background-color: #F00; color: #FFF; left: 0%; transform: translateX(-50%);">P</div>
+            </div>
+        </div>
+
+        <!-- Main Log/Story Display -->
+        <div id="log-display" class="log-box">
+            <h2>Expedition Log</h2>
+            <p id="initial-log-message"></p>
+        </div>
+
+        <!-- Input and Action Buttons -->
+        <div id="input-area" class="input-box text-center">
+            <div id="action-buttons" class="flex justify-center flex-wrap gap-3">
+                <button id="travel-button" onclick="handleAction('travel')">Travel</button>
+                <button id="rest-button" onclick="handleAction('rest')">Rest</button>
+                <button id="hunt-button" onclick="handleAction('hunt')">Hunt</button>
+                <button id="adventure-button" onclick="handleAction('adventure')">Adventure Inland</button>
+            </div>
+            <button id="start-new-game" class="hidden mt-4" onclick="startGame()">Start New Expedition</button>
+        </div>
+    </div>
+
+    <!-- Hunting Mini-Game Screen -->
+    <div id="minigame-screen" class="full-screen-overlay hidden">
+        <h2>HUNTING MINI-GAME: SHOOT THE GAME!</h2>
+        <p class="mb-4 text-yellow-400">Click on the moving game animal (🐇) to score a hit. You have 3 tries.</p>
+        <div id="minigame-canvas" onclick="checkHit(event)">
+            <span class="moving-target" id="target-animal">🐇</span>
+        </div>
+        <p class="mt-4">Shots Left: <span id="shots-left">3</span> | Hits: <span id="hits-scored">0</span></p>
+        <button class="mt-4" onclick="endMinigame(false)">GIVE UP</button>
+    </div>
+
+    <!-- Choice Event Modal -->
+    <div id="choice-modal" class="message-modal hidden">
+        <div class="message-content">
+            <h3 id="choice-title" class="text-xl">Decision Point!</h3>
+            <p id="choice-text" class="mb-4 text-yellow-400"></p>
+            <div id="choice-buttons" class="flex justify-center gap-4 mt-4">
+                <!-- Buttons will be populated by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Generic Message Box Modal -->
+    <div id="message-modal" class="message-modal hidden">
+        <div class="message-content">
+            <h3 id="modal-title" class="text-xl">Message</h3>
+            <p id="modal-text" class="mb-4"></p>
+            <button onclick="closeModal()">OK</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- Configuration ---
+    const TOTAL_DISTANCE = 600; 
+    const MAX_HEALTH = 100;
+    const EXPLORER_PROFILES = {
+        'Portolá': {
+            name: 'Portolá (Land)',
+            goal: 'MONTEREY BAY',
+            goalMessage: 'You are leading a land expedition to establish missions. Your focus is survival against the desert, disease, and Native resistance.',
+            initial: { health: 100, supplies: 250, water: 120 },
+            costs: { travel: { supplies: 25, water: 15 }, rest: { supplies: 5 } },
+            distanceRange: { min: 50, max: 100 }
+        },
+        'Cabrillo': {
+            name: 'Cabrillo (Sea)',
+            goal: 'CAPE MENDOCINO', 
+            goalMessage: 'You sail three ships along the coast, seeking to chart the unknown Northern coast. Your focus is charting the coastline and avoiding storms and disease.',
+            initial: { health: 120, supplies: 200, water: 100 },
+            costs: { travel: { supplies: 15, water: 10 }, rest: { supplies: 5 } },
+            distanceRange: { min: 60, max: 110 }
+        },
+        'Drake': {
+            name: 'Drake (Privateer)',
+            goal: 'HIDDEN BAY', 
+            goalMessage: 'You are Sir Francis Drake, a privateer escaping the Spanish. Your focus is finding a hidden bay (Drakes Bay) to repair your ship, The Golden Hind, and gather water.',
+            initial: { health: 90, supplies: 300, water: 80 },
+            costs: { travel: { supplies: 20, water: 10 }, rest: { supplies: 5 } },
+            distanceRange: { min: 70, max: 130 }
+        }
+    };
+
+    // --- Game State ---
+    let state = {
+        currentExplorer: null,
+        distance: 0,
+        health: 0,
+        supplies: 0,
+        water: 0,
+        isGameRunning: false,
+        activeDecisions: [], // Array for 3 unique, selected decision events
+    };
+    let isGameOver = false; 
+
+    // --- DOM Elements ---
+    const dom = {
+        startScreen: document.getElementById('start-screen'),
+        mainGameUI: document.getElementById('main-game-ui'),
+        explorerName: document.getElementById('explorer-name'),
+        distance: document.getElementById('distance-traveled'),
+        health: document.getElementById('health-value'),
+        supplies: document.getElementById('supplies-value'),
+        water: document.getElementById('water-value'),
+        mapFill: document.getElementById('map-fill'),
+        playerIcon: document.getElementById('player-icon'),
+        goalLabel: document.getElementById('goal-label'),
+        initialLogMessage: document.getElementById('initial-log-message'),
+        logDisplay: document.getElementById('log-display'),
+        travelButton: document.getElementById('travel-button'),
+        restButton: document.getElementById('rest-button'),
+        huntButton: document.getElementById('hunt-button'),
+        adventureButton: document.getElementById('adventure-button'),
+        newGameButton: document.getElementById('start-new-game'),
+        // Minigame elements
+        minigameScreen: document.getElementById('minigame-screen'),
+        shotsLeft: document.getElementById('shots-left'),
+        hitsScored: document.getElementById('hits-scored'),
+        targetAnimal: document.getElementById('target-animal'),
+        // Choice Modal elements
+        choiceModal: document.getElementById('choice-modal'),
+        choiceTitle: document.getElementById('choice-title'),
+        choiceText: document.getElementById('choice-text'),
+        choiceButtons: document.getElementById('choice-buttons')
+    };
+
+    // --- Adventure Inland Decision Bank (New dedicated structure) ---
+    const ADVENTURE_BANK = [
+        {
+            title: "Coastal Cave Expedition",
+            text: "You spot a large cave inland, rumored to hold fresh water or dangerous beasts. Do you send a small party to explore, or continue charting the immediate coastline?",
+            choices: [
+                { text: 'Explore the Cave (High Risk/Reward)', action: () => { 
+                    if (Math.random() < 0.6) { // 60% chance for reward
+                        state.supplies += 50; state.water = Math.min(EXPLORER_PROFILES[state.currentExplorer].initial.water, state.water + 30); return "Gained 50 Supplies and 30 Water from a hidden spring! Minor setback in distance.";
+                    } else { // 40% chance for risk
+                        state.health = Math.max(0, state.health - 20); state.supplies = Math.max(0, state.supplies - 15); return "Ambushed by wildlife! Lost 20% Health and 15 Supplies in the fight.";
+                    }
+                }},
+                { text: 'Continue Coastline Survey (Safe)', action: () => { 
+                    state.distance += 40; state.water = Math.max(0, state.water - 15); return "Gained 40 miles, but used extra water waiting for the scouting party to return."; 
+                }}
+            ]
+        },
+        {
+            title: "Encounter with Local Tribe",
+            text: "You stumble upon an indigenous village far from the main trail. They seem wary but curious. Do you attempt aggressive trade or retreat immediately?",
+            choices: [
+                { text: 'Attempt Trade (Diplomacy)', action: () => { 
+                    if (Math.random() < 0.7) { // 70% chance for reward
+                        state.supplies += 70; state.water = Math.min(EXPLORER_PROFILES[state.currentExplorer].initial.water, state.water + 10); return "Successful and peaceful trade! Gained 70 Supplies and 10 Water.";
+                    } else { // 30% chance for risk
+                        state.health = Math.max(0, state.health - 15); state.supplies = Math.max(0, state.supplies - 30); return "The trade went sour! Lost 15% Health and 30 Supplies in the skirmish.";
+                    }
+                }},
+                { text: 'Immediate Retreat (Cautious)', action: () => { 
+                    state.supplies = Math.max(0, state.supplies - 10); state.health = Math.min(MAX_HEALTH, state.health + 5); return "The hasty retreat cost 10 Supplies, but the crew is relieved and morale is up (+5% Health).";
+                }}
+            ]
+        }
+    ];
+
+    // --- Decision Event Bank (High Risk/Reward/Ethics) ---
+    const DECISION_BANK = [
+        // --- Portolá Decisions (Land) ---
+        { id: 'portola-scout', explorer: 'Portolá', text: "You have spotted a pass that is shorter but looks dangerous. Should you send scouts ahead or take the longer, safer route?", choices: [
+            { text: 'Send Scouts (Faster but Riskier)', action: () => { logMessage("Scouts successfully find a shortcut!"); state.distance += 50; state.health = Math.max(0, state.health - 5); return "Gained 50 miles, but lost 5% health in the rush."; } },
+            { text: 'Take the Safe Route (Slower but Secure)', action: () => { logMessage("You take the established trail, preserving health."); state.distance += 10; state.supplies = Math.max(0, state.supplies - 15); return "Gained only 10 miles. Lost 15 supplies for the extra travel time."; } }
+        ]},
+        { id: 'portola-crisis', explorer: 'Portolá', text: "The Padres claim divine intervention is the only way to save the mission's livestock, insisting on a day of prayer, which delays travel. Should you prioritize religious duty or the pace of the expedition?", choices: [
+            { text: 'Prioritize Prayer (Religious Duty)', action: () => { logMessage("You stop for a full day of prayer. The livestock does not improve."); state.supplies = Math.max(0, state.supplies - 30); state.health = Math.max(0, state.health - 5); return "Lost 30 Supplies and 5% Health from the delay."; } },
+            { text: 'Press On (Prioritize Expedition)', action: () => { logMessage("You order the expedition to move. The Padres are deeply unhappy."); state.health = Math.max(0, state.health - 10); state.water = Math.max(0, state.water - 15); return "Lost 10% Health (morale drops) and 15 Water."; } }
+        ]},
+        { id: 'portola-food', explorer: 'Portolá', text: "Your men are exhausted and hungry. You find a Native food cache. Do you take the food now to save the men, or respect the property?", choices: [
+            { text: 'Take the Food (Survival)', action: () => { logMessage("You take the food, knowing this may lead to future conflict."); state.supplies += 80; state.health = Math.min(MAX_HEALTH, state.health + 10); return "Gained 80 Supplies and 10% Health, but risked relations."; } },
+            { text: 'Leave it (Ethics)', action: () => { logMessage("You respect the cache, but the men's morale and hunger worsen."); state.health = Math.max(0, state.health - 15); return "Health drops by 15% due to hunger."; } }
+        ]},
+        { id: 'portola-site', explorer: 'Portolá', text: "A Native American village is located on the prime site selected for the new mission. The Padre insists on building now. Do you use force or attempt to negotiate?", choices: [
+            { text: 'Use Force (Obey Padre)', action: () => { logMessage("You forcefully occupy the site, scattering the villagers."); state.health = Math.max(0, state.health - 5); state.supplies = Math.max(0, state.supplies - 20); return "Lost 5% Health and 20 Supplies in the conflict."; } },
+            { text: 'Negotiate and Wait', action: () => { logMessage("You spend two days negotiating, trading goods for the site."); state.supplies = Math.max(0, state.supplies - 50); state.health = Math.min(MAX_HEALTH, state.health + 5); return "Lost 50 Supplies, but gained 5% Health and peaceful relations."; } }
+        ]},
+        { id: 'portola-disease', explorer: 'Portolá', text: "An outbreak of fever incapacitates half the party. You must choose to leave the sick behind with limited supplies, or wait and risk depleting all resources.", choices: [
+            { text: 'Wait and Treat', action: () => { logMessage("You halt the expedition for a week to care for the sick."); state.supplies = Math.max(0, state.supplies - 100); state.health = Math.min(MAX_HEALTH, state.health + 20); return "Lost 100 Supplies. Gained 20% Health (morale and recovery)."; } },
+            { text: 'Leave Sick Behind', action: () => { logMessage("You leave the sick. The remaining men are grim but healthy."); state.health = Math.max(0, state.health - 10); return "Lost 10% Health (morale loss)."; } }
+        ]},
+
+        // --- Cabrillo Decisions (Sea) ---
+        { id: 'cabrillo-scurvy', explorer: 'Cabrillo', text: "SCURVY STRIKES! Sailors are getting sick. Should you stop to search for citrus, or press on toward the goal?", choices: [
+            { text: 'Search for Citrus', action: () => { logMessage("Stopped to search the coast. Crew found wild berries."); state.supplies += 20; state.health = Math.min(MAX_HEALTH, state.health + 15); return "Health recovers by 15% and gained 20 Supplies."; } },
+            { text: 'Press On', action: () => { logMessage("You press on. The illness worsens."); state.health = Math.max(0, state.health - 25); return "Health drops by a severe 25%."; } }
+        ]},
+        { id: 'cabrillo-fog', explorer: 'Cabrillo', text: "Dense northern fog has rolled in. Should you risk sailing through it blindly to maintain speed, or anchor and wait for a clear sky?", choices: [
+            { text: 'Sail Blindly', action: () => { logMessage("You continue sailing. The fog is thick."); const damage = Math.random() < 0.6 ? 0 : 30; state.health = Math.max(0, state.health - damage); return damage > 0 ? "You scraped a reef! 30% Health loss." : "You made good time, no damage sustained."; } },
+            { text: 'Anchor and Wait', action: () => { logMessage("You anchor and wait 24 hours."); state.supplies = Math.max(0, state.supplies - 10); state.water = Math.max(0, state.water - 10); return "Lost 10 Supplies and 10 Water, but avoided disaster."; } }
+        ]},
+        { id: 'cabrillo-currents', explorer: 'Cabrillo', text: "Strong currents are pushing you far offshore. You risk missing coastline charting but gain speed. Do you fight the current or ride it?", choices: [
+            { text: 'Fight the Current (Navigation)', action: () => { logMessage("You spend valuable time and energy to stay close to the coast."); state.supplies = Math.max(0, state.supplies - 40); return "Lost 40 Supplies, but maintained charting precision."; } },
+            { text: 'Ride the Current (Speed)', action: () => { logMessage("You ride the current, gaining speed but potentially missing key landmarks."); state.distance += 40; state.supplies = Math.max(0, state.supplies - 10); return "Gained 40 miles, but lost 10 Supplies."; } }
+        ]},
+        { id: 'cabrillo-burial', explorer: 'Cabrillo', text: "You land at an island and one of your senior officers dies from fever. The crew is shaken. Should you conduct a full burial ceremony, or a quick, silent one?", choices: [
+            { text: 'Full Ceremony (Morale Boost)', action: () => { logMessage("You spend half a day on a respectful ceremony."); state.supplies = Math.max(0, state.supplies - 15); state.health = Math.min(MAX_HEALTH, state.health + 10); return "Lost 15 Supplies. Gained 10% Health (morale)."; } },
+            { text: 'Quick Ceremony (Expedition Pace)', action: () => { logMessage("You conduct a swift ceremony and immediately set sail."); state.supplies = Math.max(0, state.supplies - 5); state.health = Math.max(0, state.health - 5); return "Lost 5 Supplies. Lost 5% Health (morale drops)."; } }
+        ]},
+        { id: 'cabrillo-mutiny', explorer: 'Cabrillo', text: "A small group of disgruntled sailors is murmuring about turning back due to lack of fresh water. Do you impose strict discipline or offer a reward to those who remain loyal?", choices: [
+            { text: 'Strict Discipline', action: () => { logMessage("You punish the leaders harshly, stopping the mutiny."); state.health = Math.max(0, state.health - 5); state.supplies = Math.max(0, state.supplies - 5); return "Lost 5% Health (fear/tension), and a few supplies."; } },
+            { text: 'Offer Reward', action: () => { logMessage("You promise double pay upon return. Morale lifts."); state.health = Math.min(MAX_HEALTH, state.health + 10); return "Gained 10% Health (morale)."; } }
+        ]},
+
+        // --- Drake Decisions (Privateer) ---
+        { id: 'drake-spanish', explorer: 'Drake', text: "Spanish galleons sighted! They are hunting The Golden Hind. Should you hide or risk sailing at night?", choices: [
+            { text: 'Hide in Bay', action: () => { logMessage("You hide for two days in a secret cove."); state.supplies = Math.max(0, state.supplies - 10); state.water = Math.max(0, state.water - 10); return "Lost 10 Supplies and 10 Water."; } },
+            { text: 'Sail at Night', action: () => { logMessage("You risk a night sail."); const damage = Math.random() < 0.5 ? 0 : 20; state.health = Math.max(0, state.health - damage); return damage > 0 ? "You hit a shallow reef! 20% Health loss." : "You escaped successfully."; } }
+        ]},
+        { id: 'drake-brass', explorer: 'Drake', text: "A sailor finds an engraved metal plate, possibly Drake's Plate of Brass. Should you carry its weight, or discard it to save weight?", choices: [
+            { text: 'Carry the Plate (Historical Claim)', action: () => { logMessage("You keep the plate. It takes up space."); state.supplies = Math.max(0, state.supplies - 15); return "Lost 15 Supplies (space taken), but the Queen will be pleased."; } },
+            { text: 'Discard the Scrap', action: () => { logMessage("You discard the piece of brass."); state.supplies += 10; return "Gained 10 Supplies (space freed)."; } }
+        ]},
+        { id: 'drake-treasure', explorer: 'Drake', text: "You intercept a small, poorly guarded Spanish supply vessel. Do you attack and risk exposure, or let it pass?", choices: [
+            { text: 'Attack (Risk/Reward)', action: () => { logMessage("You attack and loot the vessel. It was rich!"); state.supplies += 100; state.water = Math.min(EXPLORER_PROFILES[state.currentExplorer].initial.water, state.water + 50); state.health = Math.max(0, state.health - 5); return "Gained 100 Supplies and 50 Water! Lost 5% Health in the skirmish."; } },
+            { text: 'Let it Pass (Safety)', action: () => { logMessage("You let the vessel pass to maintain stealth."); state.health = Math.min(MAX_HEALTH, state.health + 5); return "Gained 5% Health (crew relaxation)."; } }
+        ]},
+        { id: 'drake-repair', explorer: 'Drake', text: "You find a remote cove perfect for ship repair, but it has no fresh water. Should you repair immediately or search for water first?", choices: [
+            { text: 'Repair Immediately', action: () => { logMessage("You repair the ship, but water runs critically low."); state.health = Math.min(MAX_HEALTH, state.health + 20); state.water = Math.max(0, state.water - 30); return "Gained 20% Health (ship fixed), but lost 30 Water."; } },
+            { text: 'Search for Water', action: () => { logMessage("You sail on, risking the ship's condition, but find a stream."); state.water = Math.min(EXPLORER_PROFILES[state.currentExplorer].initial.water, state.water + 40); state.health = Math.max(0, state.health - 10); return "Gained 40 Water, but lost 10% Health (ship wear)."; } }
+        ]},
+    ];
+
+    // --- Effect Event Bank (Standard Random Events) ---
+    const EFFECT_EVENTS = [
+        // Portolá Specific (Effect)
+        { id: 'desert', explorer: 'Portolá', weight: 3, text: "Desert Travel! You struggle through the Baja California desert. The heat is terrible.", effect: () => { state.water = Math.max(0, state.water - 20); state.health = Math.max(0, state.health - 5); return `Water is severely depleted! Lost 20 Water and 5% Health.`; } },
+        { id: 'yuma', explorer: 'Portolá', weight: 1.5, text: "Angry Kumeyaay people protest your animals trampling their crops! Conflict is high.", effect: () => { state.supplies = Math.max(0, state.supplies - 50); state.health = Math.max(0, state.health - 15); return `Lost 50 Supplies and 15% Health in the scuffle!`; } },
+
+        // Cabrillo Specific (Effect)
+        { id: 'storm', explorer: 'Cabrillo', weight: 2.5, text: "A fierce storm hits the three small ships! Cabrillo himself was badly injured charting this coast.", effect: () => { state.supplies = Math.max(0, state.supplies - 30); state.health = Math.max(0, state.health - 10); return `Lost 30 Supplies and 10% Health due to damage and injury.`; } },
+
+        // Drake Specific (Effect)
+        { id: 'natives-trade', explorer: 'Drake', weight: 1.5, text: "Friendly Coast Miwok found near what will be Drakes Bay. They treat you with great reverence.", effect: () => { state.supplies += 40; state.water = Math.min(EXPLORER_PROFILES[state.currentExplorer].initial.water, state.water + 20); return `Gained 40 Supplies and 20 Water through trade!`; } },
+
+        // General Events (All Explorers)
+        { id: 'water-hole', explorer: 'All', weight: 3, text: "You found a freshwater spring! This is a great find on the dry coast.", effect: () => { state.water = Math.min(EXPLORER_PROFILES[state.currentExplorer].initial.water, state.water + 30); return `Gained 30 Water!`; } },
+        { id: 'illness', explorer: 'All', weight: 1, text: "Illness strikes the crew! This was a constant danger on all expeditions.", effect: () => { state.health = Math.max(0, state.health - 10); return `Infection spreads. Health drops by 10%.`; } },
+        { id: 'breakage', explorer: 'All', weight: 2, text: "Equipment/Rigging failure. You must make repairs using valuable resources.", effect: () => { state.supplies = Math.max(0, state.supplies - 15); return `Lost 15 Supplies to repair broken equipment.`; } },
+        
+        // NEW DISASTER: Tropical Storm
+        { id: 'tropical-storm', explorer: 'All', weight: 1.5, text: "A violent tropical storm erupts! The winds and rain threaten to rip the rigging apart.", effect: () => { state.supplies = Math.max(0, state.supplies - 50); state.health = Math.max(0, state.health - 20); return `Severe damage! Lost 50 Supplies and 20% Health.`; } },
+    ];
+
+    // Helper function to get random unique elements from an array
+    function selectRandomUnique(arr, num) {
+        const shuffled = arr.sort(() => 0.5 - Math.random());
+        return shuffled.slice(0, num);
+    }
+
+    // --- Core Game Logic ---
+
+    function startGame() {
+        // Reset flags and UI state
+        state.isGameRunning = false;
+        isGameOver = false;
+
+        // Show selection screen
+        dom.startScreen.classList.remove('hidden');
+        dom.mainGameUI.classList.add('hidden');
+        dom.newGameButton.classList.add('hidden');
+        dom.travelButton.classList.remove('hidden');
+        dom.restButton.classList.remove('hidden');
+        dom.huntButton.classList.remove('hidden');
+        dom.adventureButton.classList.remove('hidden');
+    }
+
+    function selectExplorer(explorer) {
+        state.currentExplorer = explorer;
+        const profile = EXPLORER_PROFILES[explorer];
+
+        // Reset state for new game
+        state.distance = 0;
+        state.health = profile.initial.health;
+        state.supplies = profile.initial.supplies;
+        state.water = profile.initial.water;
+        state.isGameRunning = true;
+        isGameOver = false;
+
+        // Select 3 random, unique decision events for this run
+        const applicableDecisions = DECISION_BANK.filter(e => e.explorer === 'All' || e.explorer === explorer);
+        state.activeDecisions = selectRandomUnique(applicableDecisions, 3);
+        // Sort active decisions so the first one is used first, second second, etc.
+        state.activeDecisions.sort((a, b) => a.id.localeCompare(b.id));
+
+
+        // Update UI with new profile
+        dom.explorerName.textContent = profile.name;
+        dom.goalLabel.textContent = profile.goal;
+        dom.distance.nextElementSibling.textContent = TOTAL_DISTANCE; // Use constant for total distance
+
+        // Reset and set initial log message (FIX: Use goalMessage instead of startMessage)
+        dom.logDisplay.innerHTML = '<h2>Expedition Log</h2><p id="initial-log-message"></p>'; // Clear log completely
+        dom.initialLogMessage = document.getElementById('initial-log-message');
+        dom.initialLogMessage.innerHTML = `<p class="text-yellow-400"><strong>Goal:</strong> ${profile.goalMessage}</p>`;
+
+        // Hide selection screen, show game UI
+        dom.startScreen.classList.add('hidden');
+        dom.mainGameUI.classList.remove('hidden');
+        dom.logDisplay.classList.remove('hidden');
+
+        updateScreen();
+    }
+
+    function checkEndGame() {
+        if (!state.isGameRunning) return true;
+
+        if (state.distance >= TOTAL_DISTANCE) {
+            logMessage(`SUCCESS! You have reached your goal: ${EXPLORER_PROFILES[state.currentExplorer].goal}.`);
+            endGame(true);
+            return true;
+        }
+
+        if (state.health <= 0 || state.supplies <= 0 || state.water <= 0) {
+            let cause = state.supplies <= 0 ? "starvation" : state.water <= 0 ? "dehydration" : "sickness";
+            logMessage(`FAILURE: The expedition ran out of resources and failed due to ${cause}.`);
+            endGame(false);
+            return true;
+        }
+
+        return false;
+    }
+
+    function travel() {
+        if (checkEndGame()) return;
+        const profile = EXPLORER_PROFILES[state.currentExplorer];
+
+        if (state.supplies < profile.costs.travel.supplies || state.water < profile.costs.travel.water) {
+            logMessage(`You lack the resources to travel! Need ${profile.costs.travel.supplies} supplies and ${profile.costs.travel.water} water.`);
+            return;
+        }
+
+        clearLog(); 
+
+        // Variable distance gained
+        const miles = Math.floor(Math.random() * (profile.distanceRange.max - profile.distanceRange.min + 1)) + profile.distanceRange.min;
+
+        state.supplies = Math.max(0, state.supplies - profile.costs.travel.supplies);
+        state.water = Math.max(0, state.water - profile.costs.travel.water);
+        state.distance += miles;
+        // Ensure health is clamped MAX_HEALTH (100)
+        state.health = Math.min(MAX_HEALTH, Math.max(0, state.health - 2)); // Minor health impact from exertion
+
+        logMessage(`You traveled ${miles} miles toward ${profile.goal}. Lost ${profile.costs.travel.supplies} supplies and ${profile.costs.travel.water} water.`);
+
+        // 95% chance of an event occurring (Decision or Effect)
+        if (Math.random() < 0.95) {
+            triggerRandomEvent();
+        } else {
+            logMessage("The journey was smooth this turn. A rare stroke of luck!");
+        }
+
+        updateScreen();
+        checkEndGame();
+    }
+
+    // UPDATED: Adventure Inland now triggers a full decision point
+    function adventureInland() {
+        if (checkEndGame()) return;
+        
+        // No resource check here, as the choice will define the consequence.
+        clearLog();
+        logMessage(`You divert from the main path to explore the unknown inland territory.`);
+        
+        // Pick a random adventure from the dedicated bank
+        const adventure = ADVENTURE_BANK[Math.floor(Math.random() * ADVENTURE_BANK.length)];
+        showChoiceModal(adventure);
+    }
+
+    function rest() {
+        if (checkEndGame()) return;
+        const profile = EXPLORER_PROFILES[state.currentExplorer];
+
+        if (state.supplies < profile.costs.rest.supplies) {
+            logMessage(`You are too low on supplies to rest safely. Need at least ${profile.costs.rest.supplies} supplies.`);
+            return;
+        }
+
+        clearLog(); 
+
+        state.supplies = Math.max(0, state.supplies - profile.costs.rest.supplies);
+        // Ensure health is clamped MAX_HEALTH (100)
+        state.health = Math.min(MAX_HEALTH, state.health + 15);
+        state.water = Math.min(profile.initial.water, state.water + 10);
+
+        logMessage(`You rested for a day. Gained 15% Health and 10 Water, but lost ${profile.costs.rest.supplies} supplies.`);
+        updateScreen();
+        checkEndGame();
+    }
+
+    function hunt() {
+        if (checkEndGame()) return;
+        // Trigger mini-game instead of direct result
+        dom.minigameScreen.classList.remove('hidden');
+        state.isGameRunning = false;
+        startMinigame();
+    }
+
+    function triggerRandomEvent() {
+        const profile = EXPLORER_PROFILES[state.currentExplorer];
+        const progress = state.distance / TOTAL_DISTANCE;
+        let decisionTriggered = false;
+
+        // Decision Trigger Logic: Prioritize active decisions at 30%, 50%, and 70% progress.
+        if (state.activeDecisions.length > 0) {
+            let shouldTrigger = false;
+            // First decision (30% mark), there are 3 left
+            if (state.activeDecisions.length === 3 && progress > 0.3 && progress < 0.4) {
+                shouldTrigger = true;
+            // Second decision (50% mark), there are 2 left
+            } else if (state.activeDecisions.length === 2 && progress > 0.5 && progress < 0.6) {
+                shouldTrigger = true;
+            // Third decision (70% mark), there is 1 left
+            } else if (state.activeDecisions.length === 1 && progress > 0.7 && progress < 0.8) {
+                shouldTrigger = true;
+            }
+
+            if (shouldTrigger) {
+                // Pop the first decision from the array
+                const selectedDecision = state.activeDecisions.shift();
+                showChoiceModal(selectedDecision);
+                decisionTriggered = true;
+            }
+        }
+
+        // If no decision was triggered, fall back to weighted effect events
+        if (!decisionTriggered) {
+            const currentEffectEvents = EFFECT_EVENTS.filter(e => e.explorer === 'All' || e.explorer === state.currentExplorer);
+            const totalWeight = currentEffectEvents.reduce((sum, event) => sum + event.weight, 0);
+            let random = Math.random() * totalWeight;
+            let selectedEvent = null;
+
+            for (const event of currentEffectEvents) {
+                if (random < event.weight) {
+                    selectedEvent = event;
+                    break;
+                }
+                random -= event.weight;
+            }
+
+            if (selectedEvent) {
+                const resultText = selectedEvent.effect();
+                logMessage(`${selectedEvent.text} -> ${resultText}`);
+            }
+        }
+    }
+
+    // --- UI/Helper Functions ---
+
+    function clearLog() {
+        // Clear all p elements between the header (index 0) and the initial message (index 1)
+        const log = dom.logDisplay;
+        // Keep the h2 and initial message element (if it exists)
+        while (log.children.length > 2) {
+            log.removeChild(log.children[2]);
+        }
+    }
+
+    function updateScreen() {
+        // Update Stats
+        dom.distance.textContent = state.distance;
+        dom.health.textContent = `${state.health}%`;
+        dom.supplies.textContent = `${state.supplies} units`;
+        dom.water.textContent = `${state.water} units`;
+
+        // Update Map Progress
+        const progressPercent = (state.distance / TOTAL_DISTANCE) * 100;
+        dom.mapFill.style.width = `${progressPercent}%`;
+        dom.playerIcon.style.left = `${Math.min(98, progressPercent)}%`; // Cap icon movement slightly before 100%
+
+        // Update Button States
+        const profile = EXPLORER_PROFILES[state.currentExplorer] || { costs: { travel: { supplies: 999, water: 999 }, rest: { supplies: 999 } } };
+        const canTravel = state.supplies >= profile.costs.travel.supplies && state.water >= profile.costs.travel.water;
+        const canRest = state.supplies >= profile.costs.rest.supplies;
+        // For adventure inland, use lower, fixed threshold to encourage use
+        const canAdventure = state.supplies >= 10 && state.water >= 10; 
+
+
+        dom.travelButton.disabled = !canTravel || !state.isGameRunning;
+        dom.restButton.disabled = !canRest || !state.isGameRunning;
+        dom.huntButton.disabled = !state.isGameRunning;
+        dom.adventureButton.disabled = !canAdventure || !state.isGameRunning;
+
+
+        // Apply health color indicator
+        let healthColor = '#0F0';
+        if (state.health < 30) healthColor = '#F00'; // Red for danger
+        else if (state.health < 60) healthColor = '#FF0'; // Yellow for caution
+        dom.health.style.color = healthColor;
+    }
+
+    function logMessage(message) {
+        const log = dom.logDisplay;
+        const p = document.createElement('p');
+        p.textContent = `> ${message}`;
+        log.insertBefore(p, log.children[2]); // Insert after the header and initial message
+        // Limit log entries to keep the screen readable
+        while (log.children.length > 10) {
+            log.removeChild(log.lastElementChild);
+        }
+    }
+
+    function endGame(success) {
+        state.isGameRunning = false;
+        isGameOver = true; // Set flag to true
+
+        dom.travelButton.classList.add('hidden');
+        dom.restButton.classList.add('hidden');
+        dom.huntButton.classList.add('hidden');
+        dom.adventureButton.classList.add('hidden');
+        dom.newGameButton.classList.remove('hidden');
+
+        let messageTitle = success ? "MISSION ACCOMPLISHED!" : "EXPEDITION FAILED!";
+        let messageText = success ?
+            `The journey to ${EXPLORER_PROFILES[state.currentExplorer].goal} was a success! Spain/England's claim is secure.` :
+            `The journey was too difficult. The expedition was lost.`;
+
+        showModal(messageTitle, messageText);
+    }
+
+    function handleAction(action) {
+        if (state.isGameRunning) {
+            if (action === 'travel') travel();
+            else if (action === 'rest') rest();
+            else if (action === 'hunt') hunt();
+            else if (action === 'adventure') adventureInland();
+        }
+    }
+
+    // --- Choice Modal Functions ---
+
+    function showChoiceModal(event) {
+        state.isGameRunning = false;
+        dom.choiceTitle.textContent = event.title || "Decision Point!";
+        dom.choiceText.textContent = event.text;
+
+        // Clear old buttons
+        dom.choiceButtons.innerHTML = '';
+
+        event.choices.forEach((choice) => {
+            const button = document.createElement('button');
+            button.textContent = choice.text;
+            button.onclick = () => handleChoice(choice);
+            dom.choiceButtons.appendChild(button);
+        });
+
+        dom.choiceModal.classList.remove('hidden');
+    }
+
+    function handleChoice(choice) {
+        dom.choiceModal.classList.add('hidden');
+        state.isGameRunning = true; // Resume game
+
+        clearLog();
+        const resultText = choice.action();
+        // Log the choice and result without the old [DECISION] tag
+        logMessage(`You chose to: ${choice.text} -> ${resultText}`);
+
+        updateScreen();
+        checkEndGame();
+    }
+
+    // --- Hunting Mini-Game Functions ---
+    let hits = 0;
+    let shots = 0;
+    let targetElement; // Reference to the target div
+
+    function startMinigame() {
+        hits = 0;
+        shots = 3;
+        dom.shotsLeft.textContent = shots;
+        dom.hitsScored.textContent = hits;
+        dom.targetAnimal.style.left = '0%'; // Reset position
+
+        // Ensure animation is running
+        targetElement = document.getElementById('target-animal');
+        // Animation CSS is set for 3s, making it slower and easier
+        targetElement.style.animation = 'move-target 3s linear infinite alternate';
+    }
+
+    function checkHit(event) {
+        if (shots <= 0) return;
+
+        // Get bounds of the target and the canvas
+        const targetRect = dom.targetAnimal.getBoundingClientRect();
+
+        // Check if the click coordinates (event.clientX, event.clientY) are inside the target's bounding box
+        if (event.clientX >= targetRect.left &&
+            event.clientX <= targetRect.right &&
+            event.clientY >= targetRect.top &&
+            event.clientY <= targetRect.bottom) {
+            hits++;
+            logMessage(`HIT! Success. Hit the animal.`);
+        } else {
+            logMessage(`MISS! You missed the animal.`);
+        }
+
+        shots--;
+        dom.shotsLeft.textContent = shots;
+        dom.hitsScored.textContent = hits;
+
+        // End game immediately on 3 shots
+        if (shots <= 0) {
+            endMinigame(true);
+        }
+    }
+
+    function endMinigame(finished) {
+        dom.minigameScreen.classList.add('hidden');
+        state.isGameRunning = true;
+        targetElement.style.animation = 'none'; // Stop animation
+
+        const profile = EXPLORER_PROFILES[state.currentExplorer];
+        // Only lose water if they tried to hunt (finished or gave up)
+        const waterCost = Math.ceil(profile.costs.travel.water / 2);
+        state.water = Math.max(0, state.water - waterCost);
+        logMessage(`Hunting consumed ${waterCost} Water.`);
+
+        if (!finished) {
+            logMessage("You gave up the hunt. No supplies gained.");
+        } else if (hits >= 2) {
+            const gain = 75;
+            state.supplies += gain;
+            // Ensure health is clamped MAX_HEALTH (100) if the choice has an implicit positive morale/health boost
+            state.health = Math.min(MAX_HEALTH, state.health + 5);
+            logMessage(`GREAT SUCCESS! You hit ${hits} times. Gained ${gain} supplies and 5% health boost.`);
+        } else if (hits === 1) {
+            const gain = 30;
+            state.supplies += gain;
+            logMessage(`MODERATE SUCCESS. You hit 1 time. Gained ${gain} supplies.`);
+        } else {
+            state.health = Math.max(0, state.health - 5);
+            logMessage("FAILURE. You missed all shots. Lost time and 5% Health.");
+        }
+
+        updateScreen();
+        checkEndGame();
+    }
+
+    // Custom Modal/Alert function
+    function showModal(title, text) {
+        document.getElementById('modal-title').textContent = title;
+        document.getElementById('modal-text').textContent = text;
+        document.getElementById('message-modal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+        document.getElementById('message-modal').classList.add('hidden');
+
+        // If the game is over, jump back to the start screen
+        if (isGameOver) {
+            startGame();
+        }
+    }
+
+    // Initialize Game on load
+    window.onload = startGame;
+</script>
+
+</body>
+</html>
