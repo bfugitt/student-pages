@@ -3,11 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>System 6 Math Facts</title>
-    <!-- 
-      Using a retro pixel font.
-      "VT323" is a good open-source option that mimics old terminal fonts.
-    --><link rel="preconnect" href="https://fonts.googleapis.com">
+    <title>System 6 Math Facts - Fact Family</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
 
@@ -41,6 +39,40 @@
             box-shadow: 6px 6px 0px #000;
             display: flex;
             flex-direction: column;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Modal Overlay */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5); /* Dim background */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100; /* Sit on top */
+            display: none; /* Hidden by default */
+        }
+        
+        /* Higher z-index for the confirmation alert so it sits over other modals */
+        #confirmation-modal {
+            z-index: 200;
+        }
+
+        /* Modal Window Specifics */
+        .modal-window {
+            max-width: 500px; 
+            box-shadow: 10px 10px 0px #000; 
+        }
+        
+        /* Alert Window Specifics */
+        .alert-window {
+            max-width: 350px;
+            box-shadow: 10px 10px 0px #000;
         }
 
         /* Title bar styling */
@@ -85,11 +117,30 @@
             box-shadow: 1px 1px 0px #000;
             transform: translate(1px, 1px);
         }
-        /* Pause box styling - using a simple icon for visibility */
+        /* Pause box styling */
         .pause-box {
-            margin-left: 4px; /* Space it slightly from the stripes */
+            margin-left: 4px; 
             font-size: 14px;
             line-height: 16px;
+        }
+
+        /* Mode Selector Styling */
+        .mode-selector {
+            padding: 8px 16px;
+            border-bottom: 2px solid #000;
+            text-align: left;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+        }
+        #game-mode {
+            font-family: 'VT323', monospace;
+            font-size: 18px;
+            border: 2px solid #000;
+            margin-left: 8px;
+            padding: 2px;
+            background-color: #fff;
+            box-shadow: 1px 1px 0px #000;
         }
 
 
@@ -101,20 +152,80 @@
             flex-grow: 1;
         }
 
-        /* Problem display */
+        /* Problem display (for Fast Facts mode) */
         #problem-container {
             font-size: 64px;
             margin: 20px 0;
-            height: 80px; /* Prevent layout shift */
-            line-height: 80px;
+            height: 120px; 
+            line-height: 120px;
             letter-spacing: 4px;
-            transition: background-color 0.05s ease-out, color 0.05s ease-out; /* Smooth transition for color changes too */
+            transition: background-color 0.05s ease-out, color 0.05s ease-out; 
         }
         /* Style for the correction display */
         .correction-display {
-            background-color: #000 !important; /* Force black background */
-            color: #fff !important; /* Force white text */
-            transition: none; /* No transition for this specific state to be instant */
+            background-color: #000 !important; 
+            color: #fff !important; 
+            transition: none; 
+        }
+
+        /* --- Fact Triangle Styling --- */
+        #triangle-container {
+            position: relative; 
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 20px auto; 
+            height: 160px; 
+            font-size: 48px;
+            line-height: 1.2;
+            width: 100%; 
+            max-width: 280px; 
+            box-sizing: border-box;
+        }
+        
+        /* Operation Symbol Styling - Centered in Triangle */
+        #triangle-operator-symbol {
+            position: absolute;
+            top: 55%; 
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 60px; 
+            font-weight: bold;
+            opacity: 0.3; 
+            color: #000;
+            z-index: 0; 
+            pointer-events: none;
+            white-space: nowrap;
+        }
+        
+        /* Fact Family Rows */
+        #triangle-top-wrapper {
+            margin-bottom: 20px; 
+            z-index: 2; 
+        }
+        #triangle-bottom-row {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            padding: 0 30px; 
+            box-sizing: border-box;
+            z-index: 2; 
+        }
+
+        /* The circles */
+        .number-circle {
+            width: 70px; 
+            height: 70px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #eee;
+            border: 2px solid #000;
+            border-radius: 50%; 
+            box-sizing: border-box;
+            font-size: 36px; 
+            z-index: 2;
         }
 
 
@@ -134,7 +245,6 @@
             text-align: center;
             border: 2px solid #000;
             padding: 5px;
-            /* Remove number spinner arrows */
             -moz-appearance: textfield;
         }
         #answer-input::-webkit-outer-spin-button,
@@ -146,17 +256,17 @@
         /* Feedback message (Correct/Incorrect) */
         #feedback {
             font-size: 24px;
-            height: 30px; /* Prevent layout shift */
+            height: 30px; 
             line-height: 30px;
             margin-top: 15px;
             font-weight: bold;
         }
 
         .feedback-correct {
-            color: #000; /* Keeping it monochrome */
+            color: #000; 
         }
         .feedback-incorrect {
-            color: #000; /* Keeping it monochrome */
+            color: #000; 
         }
 
         /* Info bar for score and timer */
@@ -172,7 +282,8 @@
         .button-bar {
             padding: 0 16px 16px;
             display: flex;
-            justify-content: flex-end; /* Align to the right */
+            justify-content: flex-end; 
+            gap: 10px; /* Space between buttons */
         }
         .btn {
             font-family: 'VT323', monospace;
@@ -180,7 +291,6 @@
             background-color: #fff;
             border: 2px solid #000;
             padding: 5px 15px;
-            margin-left: 10px;
             box-shadow: 3px 3px 0px #000;
             cursor: pointer;
             user-select: none;
@@ -217,12 +327,93 @@
         }
         /* Highlight low weights */
         .weight-low {
-            background-color: #c0ffc0; /* A light green, even in monochrome this will be a shade */
+            background-color: #c0ffc0; 
+        }
+
+        /* --- Log Table Specifics --- */
+        #log-list-container {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #000;
+            margin-bottom: 20px;
+            padding: 5px;
+            background: #fff;
+        }
+        #log-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 18px;
+        }
+        #log-table th, #log-table td {
+            text-align: left;
+            padding: 4px;
+            border-bottom: 1px solid #ccc;
+        }
+        #log-table th {
+            border-bottom: 2px solid #000;
         }
 
     </style>
 </head>
 <body>
+
+    <!-- MODAL: Practice Log -->
+    <div id="history-modal" class="modal-overlay">
+        <div class="window modal-window">
+            <div class="title-bar">
+                <div class="close-box" id="modal-close-box">&times;</div>
+                <div class="title-bar-stripes"></div>
+                <div>Practice Log</div>
+                <div class="title-bar-stripes"></div>
+            </div>
+            <div class="content" style="padding-bottom: 0;">
+                <div id="log-list-container">
+                    <table id="log-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Time</th>
+                                <th>Score</th>
+                                <th>Duration</th>
+                            </tr>
+                        </thead>
+                        <tbody id="log-table-body">
+                            <!-- Logs injected here -->
+                        </tbody>
+                    </table>
+                </div>
+                <div style="margin-bottom: 15px; font-size: 18px;">
+                    Select an action below:
+                </div>
+            </div>
+            <div class="button-bar" style="justify-content: space-between; padding-top: 0;">
+                <button class="btn" id="btn-continue">Continue</button>
+                <button class="btn" id="btn-new-session">New Session</button>
+                <button class="btn" id="btn-reset-all" style="background-color: #ffebeb;">Reset All</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Confirmation Alert (New!) -->
+    <div id="confirmation-modal" class="modal-overlay">
+        <div class="window alert-window">
+            <div class="title-bar">
+                <div class="close-box" id="confirm-close-box">&times;</div>
+                <div class="title-bar-stripes"></div>
+                <div>Alert</div>
+                <div class="title-bar-stripes"></div>
+            </div>
+            <div class="content">
+                <div id="confirmation-message" style="margin-bottom: 20px;">
+                    <!-- Message injected here -->
+                </div>
+                <div class="button-bar" style="justify-content: center; gap: 20px; padding: 0;">
+                    <button class="btn" id="btn-confirm-yes">Yes</button>
+                    <button class="btn" id="btn-confirm-cancel">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Main application window --><div class="window">
         <!-- Title bar --><div class="title-bar">
@@ -230,12 +421,35 @@
             <div class="title-bar-stripes"></div>
             <div>System 6 Math Facts</div>
             <div class="title-bar-stripes"></div>
-            <!-- NEW Pause/Play button (Right) --><div class="pause-box" id="pause-box-btn">||</div>
+            <!-- Pause/Play button (Right) --><div class="pause-box" id="pause-box-btn">||</div>
+        </div>
+
+        <!-- Mode Selector --><div class="mode-selector">
+            <label for="game-mode">Mode:</label>
+            <select id="game-mode">
+                <option value="fastFacts">Fast Facts (A + B = ?)</option>
+                <option value="factFamily">Fact Family (A?B?C Triangle)</option>
+            </select>
         </div>
 
         <!-- Main content area --><div class="content">
-            <!-- The math problem --><div id="problem-container">
+            <!-- The math problem (Fast Facts Mode) --><div id="problem-container">
                 7 &times; 6
+            </div>
+            
+            <!-- Fact Family Triangle Display --><div id="triangle-container" style="display: none;">
+                
+                <!-- Large Operation Symbol (Centered) -->
+                <div id="triangle-operator-symbol"></div> 
+
+                <!-- Numbers -->
+                <div class="triangle-row" id="triangle-top-wrapper">
+                    <div class="number-circle" id="triangle-top"></div>
+                </div>
+                <div class="triangle-row" id="triangle-bottom-row">
+                    <div class="number-circle" id="triangle-bottom-left"></div>
+                    <div class="number-circle" id="triangle-bottom-right"></div>
+                </div>
             </div>
 
             <!-- Input and new Check button container --><div id="input-controls">
@@ -256,6 +470,7 @@
         </div>
 
         <!-- Button Bar --><div class="button-bar">
+            <button class="btn" id="log-btn">Log Score</button>
             <button class="btn" id="reset-btn">Reset</button>
         </div>
 
@@ -265,7 +480,9 @@
                 <!-- Header will be built by JS --><thead>
                     <tr id="weights-header-row">
                         <th>Num</th>
-                        <!-- More headers will be added by JS --></tr>
+                        <th>+ / -</th>
+                        <th>&times; / &divide;</th>
+                    </tr>
                 </thead>
                 <!-- Body will be built by JS --><tbody id="weights-body">
                     <!-- Rows will be added by JS --></tbody>
@@ -276,56 +493,78 @@
     <script>
         // --- Constants ---
         const LOCAL_STORAGE_KEY = 'system6MathFactsState';
-        const TIME_LIMIT_SECONDS = 3.0; // Time limit for a "fast" answer
-        const INITIAL_OPERAND_WEIGHT = 5; // Default weight for a number
-        const INITIAL_PROBLEM_WEIGHT = 5; // Default weight for a problem
-        const WEIGHT_CHANGE_AMOUNT = 1;   // How much to change weight by
+        const TIME_LIMIT_SECONDS = 3.0; 
+        const INITIAL_OPERAND_WEIGHT = 5; 
+        const WEIGHT_CHANGE_AMOUNT = 1;   
         const MIN_WEIGHT = 1;
         const MAX_WEIGHT = 10;
-        const NEXT_PROBLEM_DELAY_MS = 600; // Time to wait after answering
-        const CORRECTION_DISPLAY_DURATION_MS = 900; // Duration for black box correction display
+        const NEXT_PROBLEM_DELAY_MS = 300; // Updated to 300ms
+        const CORRECTION_DISPLAY_DURATION_MS = 900; 
 
         // --- Game Range Settings ---
-        // The numbers used when a game is first started
         const INITIAL_MIN_NUM = 2;
         const INITIAL_MAX_NUM = 9;
-
-        // The absolute maximum number the curriculum will expand to
         const MASTER_MIN_NUM = 2;
         const MASTER_MAX_NUM = 20;
 
         // --- Game State Variables ---
         let currentScore = 0;
         let operandWeights = { addSub: {}, mulDiv: {} };
-        let problemWeights = {}; // Deprecated for selection, but kept for data structure consistency
         let currentProblem = {};
-        let lastProblemKey = ""; // To prevent immediate repeats
+        let lastProblemKey = ""; 
         let startTime = 0;
-        let timerInterval = null; // Per-problem timer
-        let totalTimeSeconds = 0; // Total accumulated time in seconds
-        let totalTimeInterval = null; // Interval for total time updates
+        let timerInterval = null; 
+        let totalTimeSeconds = 0; 
+        let totalTimeInterval = null; 
         let isPaused = false; 
+        let currentMode = 'fastFacts'; 
+        let practiceLogs = []; 
+        
+        // Variables for custom confirmation logic
+        let pendingConfirmationAction = null;
 
-        // Separate max numbers for each operation type to allow independent progression
         let minNumActive = INITIAL_MIN_NUM; 
         let maxNumAddSub = INITIAL_MAX_NUM;
         let maxNumMulDiv = INITIAL_MAX_NUM;
 
         // --- DOM Elements ---
         const problemContainer = document.getElementById('problem-container');
+        const triangleContainer = document.getElementById('triangle-container'); 
         const answerInput = document.getElementById('answer-input');
         const feedback = document.getElementById('feedback');
         const scoreDisplay = document.getElementById('score');
         const timerDisplay = document.getElementById('timer');
-        const resetBtn = document.getElementById('reset-btn');
+        const resetBtn = document.getElementById('reset-btn'); 
+        const logBtn = document.getElementById('log-btn'); 
         const weightsTableBody = document.getElementById('weights-body');
-        const weightsHeaderRow = document.getElementById('weights-header-row');
         const totalTimeDisplay = document.getElementById('total-time'); 
+        const modeSelector = document.getElementById('game-mode'); 
         
-        // Control buttons
         const checkAnswerBtn = document.getElementById('check-answer-btn');
         const closeBoxBtn = document.getElementById('close-box-btn');
         const pauseBoxBtn = document.getElementById('pause-box-btn'); 
+
+        // --- Triangle specific elements ---
+        const triangleTop = document.getElementById('triangle-top');
+        const triangleBottomLeft = document.getElementById('triangle-bottom-left');
+        const triangleBottomRight = document.getElementById('triangle-bottom-right');
+        const triangleOperatorSymbol = document.getElementById('triangle-operator-symbol');
+
+        // --- Modal Elements ---
+        const historyModal = document.getElementById('history-modal');
+        const modalCloseBox = document.getElementById('modal-close-box');
+        const btnContinue = document.getElementById('btn-continue');
+        const btnNewSession = document.getElementById('btn-new-session');
+        const btnResetAll = document.getElementById('btn-reset-all');
+        const logTableBody = document.getElementById('log-table-body');
+        
+        // --- Confirmation Modal Elements (NEW) ---
+        const confirmationModal = document.getElementById('confirmation-modal');
+        const confirmationMessage = document.getElementById('confirmation-message');
+        const btnConfirmYes = document.getElementById('btn-confirm-yes');
+        const btnConfirmCancel = document.getElementById('btn-confirm-cancel');
+        const confirmCloseBox = document.getElementById('confirm-close-box');
+
 
         // === Game Logic ===
 
@@ -338,21 +577,16 @@
                 try {
                     const state = JSON.parse(savedState);
                     currentScore = state.currentScore || 0;
-                    
-                    // Load the new split max numbers (with fallbacks for older saves)
                     minNumActive = state.minNumActive || INITIAL_MIN_NUM;
-                    // If the saved maxNum is greater than the new MASTER_MAX_NUM (20), cap it.
                     maxNumAddSub = Math.min(MASTER_MAX_NUM, state.maxNumAddSub || state.currentMaxNum || INITIAL_MAX_NUM);
                     maxNumMulDiv = Math.min(MASTER_MAX_NUM, state.maxNumMulDiv || state.currentMaxNum || INITIAL_MAX_NUM);
-                    
                     operandWeights = state.operandWeights;
-                    problemWeights = state.problemWeights || {};
                     lastProblemKey = state.lastProblemKey || "";
                     totalTimeSeconds = state.totalTimeSeconds || 0; 
+                    currentMode = state.currentMode || 'fastFacts'; 
+                    practiceLogs = state.practiceLogs || []; // Load logs
                     
-                    // Ensure weights exist for the current range
                     ensureWeightsExist();
-
                 } catch (e) {
                     console.error("Could not parse saved state, starting new game.", e);
                     initializeNewGame();
@@ -360,10 +594,12 @@
             } else {
                 initializeNewGame();
             }
+            
+            modeSelector.value = currentMode; 
             updateScoreDisplay();
-            updateTotalTimeDisplay(); // Display loaded time
+            updateTotalTimeDisplay(); 
             updateWeightTable();
-            startTotalTimeInterval(); // Start total time tracking
+            startTotalTimeInterval(); 
             nextProblem();
         }
         
@@ -376,11 +612,11 @@
             maxNumAddSub = INITIAL_MAX_NUM;
             maxNumMulDiv = INITIAL_MAX_NUM;
             operandWeights = { addSub: {}, mulDiv: {} };
-            problemWeights = {};
             lastProblemKey = "";
-            totalTimeSeconds = 0; // Reset total time
+            totalTimeSeconds = 0; 
             isPaused = false;
-            // Populate weights for the initial range
+            currentMode = 'fastFacts'; 
+            practiceLogs = [];
             ensureWeightsExist();
         }
         
@@ -389,13 +625,11 @@
          * have a weight entry.
          */
         function ensureWeightsExist() {
-            // Check Add/Sub range
             for (let i = minNumActive; i <= maxNumAddSub; i++) {
                 if (!operandWeights.addSub[i]) {
                     operandWeights.addSub[i] = INITIAL_OPERAND_WEIGHT;
                 }
             }
-            // Check Mul/Div range
             for (let i = minNumActive; i <= maxNumMulDiv; i++) {
                 if (!operandWeights.mulDiv[i]) {
                     operandWeights.mulDiv[i] = INITIAL_OPERAND_WEIGHT;
@@ -413,47 +647,184 @@
                 maxNumAddSub,
                 maxNumMulDiv,
                 operandWeights,
-                problemWeights,
                 lastProblemKey,
-                totalTimeSeconds 
+                totalTimeSeconds,
+                currentMode,
+                practiceLogs
             };
             localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(state));
         }
 
+        // --- Logging and Reset Logic ---
+
         /**
-         * Resets the game to its initial state.
+         * Logs the current score and time, then shows the modal.
+         */
+        function logScore() {
+            if (!isPaused) togglePause();
+
+            const now = new Date();
+            const logEntry = {
+                date: now.toLocaleDateString(),
+                time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                score: Math.floor(currentScore),
+                duration: formatTime(totalTimeSeconds)
+            };
+
+            practiceLogs.unshift(logEntry);
+            saveGameState(); 
+            
+            renderLogs();
+            historyModal.style.display = 'flex'; 
+        }
+
+        function renderLogs() {
+            logTableBody.innerHTML = '';
+            practiceLogs.forEach(log => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${log.date}</td>
+                    <td>${log.time}</td>
+                    <td>${log.score}</td>
+                    <td>${log.duration}</td>
+                `;
+                logTableBody.appendChild(row);
+            });
+        }
+
+        // --- Custom Confirmation Logic ---
+
+        function showConfirmation(message, onConfirmAction) {
+            confirmationMessage.textContent = message;
+            pendingConfirmationAction = onConfirmAction;
+            confirmationModal.style.display = 'flex';
+        }
+
+        function hideConfirmation() {
+            confirmationModal.style.display = 'none';
+            pendingConfirmationAction = null;
+        }
+
+        // Confirmation Event Listeners
+        btnConfirmYes.addEventListener('click', () => {
+            if (pendingConfirmationAction) {
+                pendingConfirmationAction();
+            }
+            hideConfirmation();
+        });
+
+        btnConfirmCancel.addEventListener('click', hideConfirmation);
+        confirmCloseBox.addEventListener('click', hideConfirmation);
+
+
+        /**
+         * ACTIONS FROM LOG WINDOW
+         */
+
+        function actionContinue() {
+            historyModal.style.display = 'none';
+            if (isPaused) togglePause(); 
+        }
+
+        function actionNewSession() {
+            stopTimerDisplay();
+            stopTotalTimeInterval();
+
+            currentScore = 0;
+            totalTimeSeconds = 0;
+            
+            saveGameState();
+            
+            updateScoreDisplay();
+            updateTotalTimeDisplay();
+            historyModal.style.display = 'none';
+            feedback.textContent = "New Session Started!";
+            
+            if (isPaused) {
+                isPaused = false;
+                pauseBoxBtn.textContent = '||';
+                startTotalTimeInterval();
+                nextProblem();
+            } else {
+                startTotalTimeInterval();
+                nextProblem();
+            }
+        }
+
+        function actionResetAll() {
+            // Show custom modal on top of log modal
+            showConfirmation("Are you sure you want to reset all scores and log entries?", () => {
+                localStorage.removeItem(LOCAL_STORAGE_KEY);
+                initializeNewGame(); 
+                saveGameState();     
+                
+                modeSelector.value = currentMode; 
+                updateScoreDisplay();
+                updateTotalTimeDisplay(); 
+                updateWeightTable();
+                
+                historyModal.style.display = 'none';
+                feedback.textContent = "Full Reset Complete.";
+                
+                if (isPaused) {
+                    isPaused = false;
+                    pauseBoxBtn.textContent = '||';
+                }
+                startTotalTimeInterval();
+                nextProblem();
+            });
+        }
+
+        /**
+         * MAIN SCREEN RESET BUTTON
+         * Resets session + weights/levels, BUT KEEPS LOGS
          */
         function resetGame() {
             stopTimerDisplay(); 
-            stopTotalTimeInterval(); // Stop total time interval
+            stopTotalTimeInterval(); 
             
-            // Use window.prompt for a retro, blocking confirmation
-            const confirmation = window.prompt("Type 'RESET' to confirm you want to erase all progress.");
-            if (confirmation !== 'RESET') {
-                startTimerDisplay(); 
-                startTotalTimeInterval(); // Restart total time interval
-                return;
+            // Use Custom Modal instead of confirm()
+            showConfirmation("Are you sure? This will reset your level progress, score, and time.", () => {
+                // Perform Soft Reset: Reset game state but preserve logs
+                const existingLogs = [...practiceLogs]; 
+                
+                initializeNewGame(); 
+                
+                practiceLogs = existingLogs; // Restore logs
+                
+                saveGameState();
+                modeSelector.value = currentMode;
+                updateScoreDisplay();
+                updateTotalTimeDisplay();
+                updateWeightTable();
+                feedback.textContent = "Progress reset.";
+                feedback.className = '';
+                
+                startTotalTimeInterval();
+                nextProblem();
+            });
+            
+            // If they click cancel, we just need to ensure timers restart if they weren't paused
+            // But since the modal is async, we handle restart in the "YES" block.
+            // If they cancel, we might want to restart timers if they were running?
+            // Let's add logic to restart timers if the confirmation is cancelled/closed.
+            // Actually, simplest is to NOT stop timers until confirmed? 
+            // Or just let them run in background. Let's let them run.
+            if (!isPaused) {
+                startTimerDisplay();
+                startTotalTimeInterval();
             }
-            
-            localStorage.removeItem(LOCAL_STORAGE_KEY);
-            initializeNewGame(); 
-            saveGameState();
-            updateScoreDisplay();
-            updateTotalTimeDisplay(); // Reset display
-            updateWeightTable();
-            feedback.textContent = "Game reset. Good luck!";
-            feedback.className = '';
-            startTotalTimeInterval(); // Restart total time for the new session
-            nextProblem();
         }
         
+        // --- End Logging Logic ---
+
+
         /**
          * Creates a weighted list from a weight object, filtering by the max allowed number.
          */
         function createWeightedList(weights, maxNum) {
             const list = [];
             for (let i = minNumActive; i <= maxNum; i++) {
-                // Use the weight for the number, ensuring it exists in the active range
                 const weight = weights[i] || INITIAL_OPERAND_WEIGHT; 
                 for (let j = 0; j < weight; j++) {
                     list.push(i.toString());
@@ -472,90 +843,155 @@
         }
 
         /**
+         * Updates the problem display based on the current mode.
+         */
+        function updateProblemDisplay() {
+            // Clear any correction flash
+            problemContainer.classList.remove('correction-display'); 
+            problemContainer.textContent = ''; 
+
+            // Clear symbol
+            triangleOperatorSymbol.textContent = ''; 
+
+            if (currentMode === 'factFamily' && currentProblem.triangle) {
+                problemContainer.style.display = 'none';
+                triangleContainer.style.display = 'flex';
+                
+                const { numA, numB, numC, missingIndex, isAddSub } = currentProblem.triangle;
+                
+                triangleTop.textContent = missingIndex === 2 ? '?' : numC;
+                triangleBottomLeft.textContent = missingIndex === 0 ? '?' : numA;
+                triangleBottomRight.textContent = missingIndex === 1 ? '?' : numB;
+
+                // Set the large symbol
+                triangleOperatorSymbol.textContent = isAddSub ? '+/-' : '×/÷';
+
+            } else { // fastFacts (or fallback)
+                problemContainer.style.display = 'block';
+                triangleContainer.style.display = 'none';
+                
+                // Restore the original problem text
+                problemContainer.textContent = `${currentProblem.num1} ${currentProblem.op} ${currentProblem.num2}`;
+            }
+        }
+
+        /**
          * Generates the next math problem.
          */
         function nextProblem() {
-            // Guard against starting a new problem if paused
             if (isPaused) return;
 
-            const operations = ['+', '-', 'x', '÷'];
             let num1, num2, op;
-            
             let validProblemFound = false;
             let attempts = 0;
 
             while (!validProblemFound && attempts < 15) {
                 attempts++;
                 
-                op = operations[Math.floor(Math.random() * operations.length)];
+                if (currentMode === 'factFamily') {
+                    // --- Fact Family Generation ---
+                    const isAddSub = Math.random() < 0.5;
+                    const maxNum = isAddSub ? maxNumAddSub : maxNumMulDiv;
+                    const weightPool = createWeightedList(isAddSub ? operandWeights.addSub : operandWeights.mulDiv, maxNum);
+                    
+                    if (weightPool.length < 2) continue; 
+
+                    let numA = parseInt(selectRandomFromList(weightPool));
+                    let numB = parseInt(selectRandomFromList(weightPool));
+                    let numC;
+
+                    // Ensure numA and numB are always the smallest numbers (parts)
+                    if (numA > numB) [numA, numB] = [numB, numA];
+
+                    if (isAddSub) {
+                        numC = numA + numB;
+                        if (numC > MASTER_MAX_NUM * 2) continue; 
+                    } else {
+                        numC = numA * numB;
+                        if (numC > 144) continue; 
+                    }
+
+                    const missingIndex = Math.floor(Math.random() * 3); // 0=A, 1=B, 2=C (The answer index)
+                    
+                    let baseOp, numMain, numSecondary, answerVal;
+
+                    if (missingIndex === 0) {
+                        // Missing A: C - B = A (or C / B = A)
+                        baseOp = isAddSub ? '-' : '÷';
+                        numMain = numC; numSecondary = numB; answerVal = numA;
+                    } else if (missingIndex === 1) {
+                        // Missing B: C - A = B (or C / A = B)
+                        baseOp = isAddSub ? '-' : '÷';
+                        numMain = numC; numSecondary = numA; answerVal = numB;
+                    } else { 
+                        // Missing C: A + B = C (or A * B = C)
+                        baseOp = isAddSub ? '+' : 'x';
+                        numMain = numA; numSecondary = numB; answerVal = numC;
+                    }
+
+                    currentProblem = { 
+                        num1: numMain, 
+                        num2: numSecondary, 
+                        op: baseOp, 
+                        answer: answerVal,
+                        triangle: { numA, numB, numC, missingIndex, isAddSub }
+                    };
+                } 
                 
-                let weightPool, maxNum;
-                if (op === '+' || op === '-') {
-                    maxNum = maxNumAddSub;
-                    weightPool = createWeightedList(operandWeights.addSub, maxNum);
-                } else {
-                    maxNum = maxNumMulDiv;
-                    weightPool = createWeightedList(operandWeights.mulDiv, maxNum);
-                }
-                
-                // Fallback if pool is empty (shouldn't happen with ensureWeightsExist)
-                if (weightPool.length === 0) {
-                    num1 = minNumActive;
-                    num2 = minNumActive;
-                } else {
+                else {
+                    // --- Fast Facts Generation (Existing Logic) ---
+                    const operations = ['+', '-', 'x', '÷'];
+                    op = operations[Math.floor(Math.random() * operations.length)];
+                    
+                    let weightPool, maxNum;
+                    if (op === '+' || op === '-') {
+                        maxNum = maxNumAddSub;
+                        weightPool = createWeightedList(operandWeights.addSub, maxNum);
+                    } else {
+                        maxNum = maxNumMulDiv;
+                        weightPool = createWeightedList(operandWeights.mulDiv, maxNum);
+                    }
+                    
+                    if (weightPool.length === 0) continue;
+
                     num1 = parseInt(selectRandomFromList(weightPool));
                     num2 = parseInt(selectRandomFromList(weightPool));
-                }
-
-                // --- Handle special division/subtraction logic ---
-                let tempKey = "";
-                if (op === '÷') {
-                    // Division problem generation: Dividend = Factor * Quotient
-                    const product = num1 * num2;
-                    if (product > 99 || product === 0 || num2 < minNumActive) { 
-                        // If the resulting problem is too large, or we divide by a number smaller than min, skip/fallback
-                        continue; // Try again
-                    } else {
+                    
+                    if (op === '÷') {
+                        const product = num1 * num2;
+                        if (product > 99 || product === 0 || num2 < minNumActive) continue; 
                         const answer = num1; 
-                        num1 = product; // Dividend
-                        // We must ensure the answer (original num1) is also in the active range
+                        num1 = product;
                         if(answer < minNumActive || answer > maxNum) continue; 
                         currentProblem = { num1, num2, op, answer };
+                    } else if (op === '-') {
+                        if (num1 < num2) [num1, num2] = [num2, num1]; 
+                        currentProblem = { num1, num2, op, answer: num1 - num2 };
+                    } else if (op === '+') {
+                        currentProblem = { num1, num2, op, answer: num1 + num2 };
+                    } else if (op === 'x') {
+                        currentProblem = { num1, num2, op, answer: num1 * num2 };
                     }
-                } else if (op === '-') {
-                    if (num1 < num2) [num1, num2] = [num2, num1]; // Swap for positive result
-                    currentProblem = { num1, num2, op, answer: num1 - num2 };
-                } else if (op === '+') {
-                    currentProblem = { num1, num2, op, answer: num1 + num2 };
-                } else if (op === 'x') {
-                    currentProblem = { num1, num2, op, answer: num1 * num2 };
                 }
                 
-                tempKey = `${currentProblem.num1}${currentProblem.op}${currentProblem.num2}`;
-                
+                const tempKey = `${currentProblem.num1}${currentProblem.op}${currentProblem.num2}`;
                 if (tempKey !== lastProblemKey) {
                     validProblemFound = true;
                 }
             }
             
-            // Safety net if loop failed
             if (!currentProblem.op) {
-                 currentProblem = { num1: 2, num2: 2, op: '+', answer: 4 };
+                 // Fallback problem if generation failed (e.g., empty weight pools)
+                 currentProblem = { num1: 2, num2: 2, op: '+', answer: 4, triangle: null };
             }
 
-            // Save this as the last problem
             lastProblemKey = `${currentProblem.num1}${currentProblem.op}${currentProblem.num2}`;
 
-            // Display the problem
-            problemContainer.textContent = `${currentProblem.num1} ${currentProblem.op} ${currentProblem.num2}`;
-            // Reset background color in case it was flashed
-            problemContainer.classList.remove('correction-display'); // Remove the correction class
-            answerInput.value = '';
+            updateProblemDisplay(); 
             
-            // Force focus back onto the input field (triggers the virtual keyboard on mobile)
+            answerInput.value = '';
             answerInput.focus();
             
-            // Start the per-problem timer
             startTimerDisplay();
             startTime = Date.now();
         }
@@ -564,7 +1000,6 @@
          * Checks the user's answer.
          */
         function checkAnswer() {
-            // Guard against checking answer if paused
             if (isPaused) return;
             
             stopTimerDisplay();
@@ -581,9 +1016,12 @@
             const isCorrect = (userAnswer === currentProblem.answer);
             const isFast = (answerTime <= TIME_LIMIT_SECONDS);
             
+            // Base score for fact family is based on the components (numA + numB)
+            const baseScore = currentMode === 'factFamily' 
+                ? (currentProblem.triangle.numA + currentProblem.triangle.numB) / 2
+                : (currentProblem.num1 + currentProblem.num2) / 2;
+
             let scoreChange = 0;
-            // Base score based on the size of the operands
-            const baseScore = (currentProblem.num1 + currentProblem.num2) / 2; 
 
             if (isCorrect) {
                 if (isFast) {
@@ -592,7 +1030,6 @@
                     scoreChange = Math.max(2, baseScore); 
                     adjustWeights(currentProblem, false); // Decrease weight
                 } else {
-                    // Correct, but slow: no weight change
                     feedback.textContent = `Correct, but slow. (${answerTime.toFixed(1)}s)`;
                     feedback.className = 'feedback-correct';
                     scoreChange = Math.max(1, baseScore / 2); 
@@ -604,178 +1041,114 @@
                 adjustWeights(currentProblem, true); // Increase weight
             }
 
-            // Apply score change
             currentScore = Math.max(0, currentScore + scoreChange);
             updateScoreDisplay();
             
-            // Check for max number progression (Level Up)
             const opType = (currentProblem.op === '+' || currentProblem.op === '-') ? 'addSub' : 'mulDiv';
             checkMaxNumProgression(opType);
 
-            // Update UI and save
             updateWeightTable();
             saveGameState();
             
-            // NEW LOGIC: Branch execution based on correctness
             if (isCorrect) {
-                // Correct: just wait and load next problem
                 setTimeout(nextProblem, NEXT_PROBLEM_DELAY_MS); 
             } else {
-                // Incorrect: display correction then load next problem
                 displayCorrection(currentProblem);
             }
         }
         
         /**
-         * Skips the current problem, resets the timer, and loads a new problem.
-         * Used by the close box 'X'.
-         */
-        function cancelProblem() {
-            // Guard against skipping if paused
-            if (isPaused) return;
-
-            stopTimerDisplay();
-            answerInput.value = '';
-            feedback.textContent = "Problem skipped. Loading next one...";
-            feedback.className = '';
-            
-            // Load next problem immediately (no delay)
-            nextProblem();
-        }
-
-        /**
-         * Toggles the pause state of the game.
-         */
-        function togglePause() {
-            if (isPaused) {
-                // RESUME
-                isPaused = false;
-                pauseBoxBtn.textContent = '||'; // Change button back to Pause icon
-                
-                // Restart total time interval
-                startTotalTimeInterval(); 
-                updateTotalTimeDisplay(); // Restore total time display
-                
-                feedback.textContent = "Resumed. Get ready!";
-                feedback.className = '';
-                
-                // Ensure correction class is removed if paused during a correction display
-                problemContainer.classList.remove('correction-display');
-                
-                // Load the next problem immediately (as requested)
-                setTimeout(nextProblem, 50); 
-            } else {
-                // PAUSE
-                isPaused = true;
-                
-                // Stop all timers
-                stopTimerDisplay(); 
-                stopTotalTimeInterval(); 
-                
-                // Update UI elements
-                problemContainer.textContent = '- PAUSED -'; // Clear problem display
-                problemContainer.classList.remove('correction-display'); // Clear any potential correction styling
-                problemContainer.style.backgroundColor = 'transparent'; // Clear any potential flash color
-                answerInput.value = '';
-                answerInput.blur(); // Remove focus so the keyboard disappears on mobile
-                
-                pauseBoxBtn.textContent = '▶'; // Change button to Play icon
-                feedback.textContent = "Game Paused";
-                feedback.className = '';
-                timerDisplay.textContent = "Time: PAUSED";
-                totalTimeDisplay.textContent = 'Total Time: PAUSED'; // Indicate paused state
-            }
-        }
-
-        /**
          * Displays the correct answer as a black box with white text.
-         * @param {object} problem - The current problem object.
          */
         function displayCorrection(problem) {
-            const correctEquation = `${problem.num1} ${problem.op} ${problem.num2} = ${problem.answer}`;
             
-            // Temporarily disable the input field during correction display
+            let correctEquation;
+            if (currentMode === 'factFamily' && problem.triangle) {
+                const { numA, numB, numC } = problem.triangle;
+                
+                // For fact family, we use the original problem container to flash the full equation
+                correctEquation = `${numA} ${problem.triangle.isAddSub ? '+' : '×'} ${numB} = ${numC}`;
+            } else {
+                correctEquation = `${problem.num1} ${problem.op} ${problem.num2} = ${problem.answer}`;
+            }
+            
             answerInput.disabled = true;
-            // Blur the input field to remove focus and dismiss the keyboard cleanly
             answerInput.blur();
 
-            // Apply the correction display styles
-            problemContainer.classList.add('correction-display');
-            problemContainer.textContent = correctEquation;
+            // Temporarily use the fast facts container for the black-box flash
+            const flashTarget = document.getElementById('problem-container');
+            
+            flashTarget.style.display = 'block';
+            document.getElementById('triangle-container').style.display = 'none';
+
+            flashTarget.classList.add('correction-display');
+            flashTarget.textContent = correctEquation;
+
 
             setTimeout(() => {
-                // After the duration, remove styles and re-enable input
-                problemContainer.classList.remove('correction-display');
+                flashTarget.classList.remove('correction-display');
                 answerInput.disabled = false;
                 
-                // Proceed to the next problem after the normal delay
                 setTimeout(nextProblem, NEXT_PROBLEM_DELAY_MS);
             }, CORRECTION_DISPLAY_DURATION_MS);
         }
 
         /**
          * Adjusts the weights for the problem and its operands.
-         * @param {object} problem - The problem that was just answered.
-         * @param {boolean} increase - True to increase weight, false to decrease.
          */
         function adjustWeights(problem, increase) {
-            const { num1, num2, op, answer } = problem;
             const change = increase ? WEIGHT_CHANGE_AMOUNT : -WEIGHT_CHANGE_AMOUNT;
-
-            // 1. Adjust Operand Weights
+            let weightsToAdjust = [];
             let weightPool;
-            if (op === '+' || op === '-') {
-                weightPool = operandWeights.addSub;
+            let opType;
+
+            if (currentMode === 'factFamily' && problem.triangle) {
+                // Fact Family: Adjust weights of the two parts (numA and numB)
+                const { numA, numB, isAddSub } = problem.triangle;
+                opType = isAddSub ? 'addSub' : 'mulDiv';
+                weightPool = isAddSub ? operandWeights.addSub : operandWeights.mulDiv;
+                weightsToAdjust = [numA, numB];
             } else {
-                weightPool = operandWeights.mulDiv;
-            }
-            
-            // Adjust num1's weight
-            if (num1 >= MASTER_MIN_NUM && num1 <= MASTER_MAX_NUM) {
-                 if (weightPool[num1] !== undefined) {
-                     weightPool[num1] = Math.max(MIN_WEIGHT, Math.min(MAX_WEIGHT, weightPool[num1] + change));
-                 }
-            }
-            
-            // Adjust num2's weight
-            if (num2 >= MASTER_MIN_NUM && num2 <= MASTER_MAX_NUM) {
-                if (weightPool[num2] !== undefined) {
-                    weightPool[num2] = Math.max(MIN_WEIGHT, Math.min(MAX_WEIGHT, weightPool[num2] + change));
+                // Fast Facts: Adjust weights of the two operands (num1 and num2)
+                const { num1, num2, op, answer } = problem;
+                opType = (op === '+' || op === '-') ? 'addSub' : 'mulDiv';
+                weightPool = opType === 'addSub' ? operandWeights.addSub : operandWeights.mulDiv;
+                weightsToAdjust = [num1, num2];
+                
+                // For division, the result (answer) is also a factor
+                if (op === '÷') {
+                    weightsToAdjust.push(answer);
                 }
             }
 
-            // For division, the result (answer) is also a factor that needs adjustment
-            if (op === '÷' && answer >= MASTER_MIN_NUM && answer <= MASTER_MAX_NUM) {
-                if (weightPool[answer] !== undefined) {
-                    weightPool[answer] = Math.max(MIN_WEIGHT, Math.min(MAX_WEIGHT, weightPool[answer] + change));
+            // Apply adjustment to the relevant numbers
+            weightsToAdjust.forEach(num => {
+                if (num >= MASTER_MIN_NUM && num <= MASTER_MAX_NUM) {
+                     if (weightPool[num] !== undefined) {
+                         weightPool[num] = Math.max(MIN_WEIGHT, Math.min(MAX_WEIGHT, weightPool[num] + change));
+                     }
                 }
-            }
+            });
         }
         
         /**
          * Checks if the max number for an operation type should be increased (leveled up).
-         * This happens if the current max number has been mastered (weight = 1).
          */
         function checkMaxNumProgression(operationType) {
             const isAddSub = (operationType === 'addSub');
             let currentMax = isAddSub ? maxNumAddSub : maxNumMulDiv;
             const weightPool = isAddSub ? operandWeights.addSub : operandWeights.mulDiv;
             
-            // The number to check for mastery is the current max number itself
-            // Ensure we haven't hit the absolute maximum, and the current max number's weight is 1
             if (currentMax < MASTER_MAX_NUM && weightPool[currentMax] === MIN_WEIGHT) {
                 
-                // Increment the max number to unlock the next one
                 currentMax++;
                 
-                // Apply the change back to the state
                 if (isAddSub) {
                     maxNumAddSub = currentMax;
                 } else {
                     maxNumMulDiv = currentMax;
                 }
                 
-                // Initialize the new number's weight
                 ensureWeightsExist();
                 
                 feedback.textContent = `Level Up! Unlocked facts for ${currentMax} in ${operationType === 'addSub' ? 'Add/Sub' : 'Mult/Div'}!`;
@@ -788,9 +1161,6 @@
 
         // === UI Functions (Timer and Display) ===
 
-        /**
-         * Starts the visual timer display.
-         */
         function startTimerDisplay() {
             stopTimerDisplay(); 
             timerInterval = setInterval(() => {
@@ -799,9 +1169,6 @@
             }, 100);
         }
 
-        /**
-         * Stops the visual timer display.
-         */
         function stopTimerDisplay() {
             if (timerInterval) {
                 clearInterval(timerInterval);
@@ -809,81 +1176,58 @@
             }
         }
         
-        /**
-         * Starts the total time accumulator.
-         */
         function startTotalTimeInterval() {
             if (!totalTimeInterval) {
                 totalTimeInterval = setInterval(() => {
                     totalTimeSeconds++;
                     updateTotalTimeDisplay();
-                }, 1000); // Update every second
+                }, 1000); 
             }
         }
 
-        /**
-         * Stops the total time accumulator.
-         */
         function stopTotalTimeInterval() {
             if (totalTimeInterval) {
                 clearInterval(totalTimeInterval);
                 totalTimeInterval = null;
             }
+            saveGameState(); // Save state when stopping total time (e.g., on pause/exit)
         }
         
-        /**
-         * Updates the total time display in M:SS format.
-         */
-        function updateTotalTimeDisplay() {
-            const totalSec = Math.floor(totalTimeSeconds);
+        function formatTime(totalSec) {
             const minutes = Math.floor(totalSec / 60);
             const seconds = totalSec % 60;
-            
             const formattedMinutes = String(minutes).padStart(2, '0');
             const formattedSeconds = String(seconds).padStart(2, '0');
-            
-            totalTimeDisplay.textContent = `Total Time: ${formattedMinutes}:${formattedSeconds}`;
+            return `${formattedMinutes}:${formattedSeconds}`;
         }
 
+        function updateTotalTimeDisplay() {
+            totalTimeDisplay.textContent = `Total Time: ${formatTime(totalTimeSeconds)}`;
+        }
 
-        /**
-         * Updates the score display.
-         */
         function updateScoreDisplay() {
             scoreDisplay.textContent = `Score: ${Math.floor(currentScore)}`;
         }
 
-        /**
-         * Re-draws the weights table based on current state.
-         */
         function updateWeightTable() {
-            // Clear old table
-            weightsHeaderRow.innerHTML = "<th>Num</th>"; // Reset header
-            weightsTableBody.innerHTML = ""; // Reset body
-
-            // Build Header
+            const overallMax = Math.max(maxNumAddSub, maxNumMulDiv);
+            const weightsHeaderRow = document.getElementById('weights-header-row');
+            
             weightsHeaderRow.innerHTML = `
                 <th>Num</th>
                 <th>+ / -</th>
                 <th>&times; / &divide;</th>
             `;
-            
-            // Determine the highest number to display in the table
-            const overallMax = Math.max(maxNumAddSub, maxNumMulDiv);
+            weightsTableBody.innerHTML = ""; 
 
-            // Build Body
             for (let i = minNumActive; i <= overallMax; i++) {
                 const row = document.createElement('tr');
-                
-                // Check if this number is currently active in the curriculum
                 const addSubActive = i <= maxNumAddSub;
                 const mulDivActive = i <= maxNumMulDiv;
 
-                // Get weights, showing N/A if not active/unlocked yet
                 const addSubWeight = addSubActive ? (operandWeights.addSub[i] || INITIAL_OPERAND_WEIGHT) : 'N/A';
                 const mulDivWeight = mulDivActive ? (operandWeights.mulDiv[i] || INITIAL_OPERAND_WEIGHT) : 'N/A';
                 
-                // Determine highlight classes
                 const addSubClass = addSubActive && addSubWeight === MIN_WEIGHT ? 'weight-low' : '';
                 const mulDivClass = mulDivActive && mulDivWeight === MIN_WEIGHT ? 'weight-low' : '';
 
@@ -899,26 +1243,86 @@
 
         // === Event Listeners ===
         
-        // Check answer on 'Enter' key (for desktop)
         answerInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 checkAnswer();
             }
         });
         
-        // Manual 'Check' button for mobile users
         checkAnswerBtn.addEventListener('click', checkAnswer);
-        
-        // Close box 'X' to skip/cancel the current problem
         closeBoxBtn.addEventListener('click', cancelProblem);
-
-        // Pause/Play toggle
         pauseBoxBtn.addEventListener('click', togglePause);
-
-        // Reset button
         resetBtn.addEventListener('click', resetGame);
+        logBtn.addEventListener('click', logScore); // New Log Listener
+
+        // Modal Listeners
+        btnContinue.addEventListener('click', actionContinue);
+        btnNewSession.addEventListener('click', actionNewSession);
+        btnResetAll.addEventListener('click', actionResetAll);
+        modalCloseBox.addEventListener('click', actionContinue);
+        
+        // Confirmation Modal Listeners
+        btnConfirmYes.addEventListener('click', () => {
+            if (pendingConfirmationAction) pendingConfirmationAction();
+            hideConfirmation();
+        });
+        btnConfirmCancel.addEventListener('click', hideConfirmation);
+        confirmCloseBox.addEventListener('click', hideConfirmation);
+        
+        // Mode change listener
+        modeSelector.addEventListener('change', (e) => {
+            if (isPaused) return; 
+            currentMode = e.target.value;
+            saveGameState(); 
+            nextProblem();    
+        });
+
+        // Toggle pause function 
+        function togglePause() {
+            if (isPaused) {
+                isPaused = false;
+                pauseBoxBtn.textContent = '||';
+                startTotalTimeInterval(); 
+                updateTotalTimeDisplay(); 
+                feedback.textContent = "Resumed. Get ready!";
+                feedback.className = '';
+                setTimeout(nextProblem, 50); 
+            } else {
+                isPaused = true;
+                stopTimerDisplay(); 
+                stopTotalTimeInterval(); 
+                
+                // Ensure fast facts container is used for the pause message
+                document.getElementById('problem-container').style.display = 'block'; 
+                document.getElementById('triangle-container').style.display = 'none';
+                problemContainer.textContent = '- PAUSED -';
+                problemContainer.classList.remove('correction-display');
+                
+                answerInput.value = '';
+                answerInput.blur();
+                
+                pauseBoxBtn.textContent = '▶';
+                feedback.textContent = "Game Paused";
+                feedback.className = '';
+                timerDisplay.textContent = "Time: PAUSED";
+                totalTimeDisplay.textContent = 'Total Time: PAUSED';
+            }
+        }
+        
+        function cancelProblem() {
+            if (isPaused) return;
+
+            stopTimerDisplay();
+            answerInput.value = '';
+            feedback.textContent = "Problem skipped. Loading next one...";
+            feedback.className = '';
+            
+            nextProblem();
+        }
+
 
         // --- Start the app ---
+        window.addEventListener('beforeunload', saveGameState); // Attempt to save on closing
         loadGameState();
 
     </script>
