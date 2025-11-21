@@ -65,7 +65,7 @@
 
         /* Modal Window Specifics */
         .modal-window {
-            max-width: 500px; 
+            max-width: 550px; /* Widened for the extra column */
             box-shadow: 10px 10px 0px #000; 
         }
         
@@ -187,10 +187,10 @@
         /* Operation Symbol Styling - Centered in Triangle */
         #triangle-operator-symbol {
             position: absolute;
-            top: 55%; 
+            top: 60%; /* Adjusted down to prevent overlap */
             left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 60px; 
+            font-size: 50px; /* Slightly smaller */
             font-weight: bold;
             opacity: 0.3; 
             color: #000;
@@ -372,9 +372,9 @@
                         <thead>
                             <tr>
                                 <th>Date</th>
-                                <th>Time</th>
+                                <th>Mode</th> <!-- New Column -->
                                 <th>Score</th>
-                                <th>Duration</th>
+                                <th>Time</th>
                             </tr>
                         </thead>
                         <tbody id="log-table-body">
@@ -394,7 +394,7 @@
         </div>
     </div>
 
-    <!-- MODAL: Confirmation Alert (New!) -->
+    <!-- MODAL: Confirmation Alert -->
     <div id="confirmation-modal" class="modal-overlay">
         <div class="window alert-window">
             <div class="title-bar">
@@ -427,8 +427,9 @@
         <!-- Mode Selector --><div class="mode-selector">
             <label for="game-mode">Mode:</label>
             <select id="game-mode">
-                <option value="fastFacts">Fast Facts (A + B = ?)</option>
-                <option value="factFamily">Fact Family (A?B?C Triangle)</option>
+                <option value="fastFacts">Fast Facts (Mixed)</option>
+                <option value="factFamilyAddSub">Fact Family (+ / -)</option>
+                <option value="factFamilyMulDiv">Fact Family (× / ÷)</option>
             </select>
         </div>
 
@@ -498,7 +499,7 @@
         const WEIGHT_CHANGE_AMOUNT = 1;   
         const MIN_WEIGHT = 1;
         const MAX_WEIGHT = 10;
-        const NEXT_PROBLEM_DELAY_MS = 300; // Updated to 300ms
+        const NEXT_PROBLEM_DELAY_MS = 300; 
         const CORRECTION_DISPLAY_DURATION_MS = 900; 
 
         // --- Game Range Settings ---
@@ -558,7 +559,7 @@
         const btnResetAll = document.getElementById('btn-reset-all');
         const logTableBody = document.getElementById('log-table-body');
         
-        // --- Confirmation Modal Elements (NEW) ---
+        // --- Confirmation Modal Elements ---
         const confirmationModal = document.getElementById('confirmation-modal');
         const confirmationMessage = document.getElementById('confirmation-message');
         const btnConfirmYes = document.getElementById('btn-confirm-yes');
@@ -584,7 +585,7 @@
                     lastProblemKey = state.lastProblemKey || "";
                     totalTimeSeconds = state.totalTimeSeconds || 0; 
                     currentMode = state.currentMode || 'fastFacts'; 
-                    practiceLogs = state.practiceLogs || []; // Load logs
+                    practiceLogs = state.practiceLogs || []; 
                     
                     ensureWeightsExist();
                 } catch (e) {
@@ -668,7 +669,8 @@
                 date: now.toLocaleDateString(),
                 time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 score: Math.floor(currentScore),
-                duration: formatTime(totalTimeSeconds)
+                duration: formatTime(totalTimeSeconds),
+                mode: getModeDisplayName(currentMode) // Add Mode to log
             };
 
             practiceLogs.unshift(logEntry);
@@ -677,6 +679,13 @@
             renderLogs();
             historyModal.style.display = 'flex'; 
         }
+        
+        // Helper to get friendly name for mode
+        function getModeDisplayName(mode) {
+            if (mode === 'factFamilyAddSub') return 'Family (+/-)';
+            if (mode === 'factFamilyMulDiv') return 'Family (×/÷)';
+            return 'Fast Facts'; // Default
+        }
 
         function renderLogs() {
             logTableBody.innerHTML = '';
@@ -684,7 +693,7 @@
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td>${log.date}</td>
-                    <td>${log.time}</td>
+                    <td>${log.mode || '-'}</td>
                     <td>${log.score}</td>
                     <td>${log.duration}</td>
                 `;
@@ -727,6 +736,7 @@
         }
 
         function actionNewSession() {
+            // Reset session stats only
             stopTimerDisplay();
             stopTotalTimeInterval();
 
@@ -752,7 +762,6 @@
         }
 
         function actionResetAll() {
-            // Show custom modal on top of log modal
             showConfirmation("Are you sure you want to reset all scores and log entries?", () => {
                 localStorage.removeItem(LOCAL_STORAGE_KEY);
                 initializeNewGame(); 
@@ -777,20 +786,17 @@
 
         /**
          * MAIN SCREEN RESET BUTTON
-         * Resets session + weights/levels, BUT KEEPS LOGS
          */
         function resetGame() {
             stopTimerDisplay(); 
             stopTotalTimeInterval(); 
             
-            // Use Custom Modal instead of confirm()
             showConfirmation("Are you sure? This will reset your level progress, score, and time.", () => {
-                // Perform Soft Reset: Reset game state but preserve logs
                 const existingLogs = [...practiceLogs]; 
                 
                 initializeNewGame(); 
                 
-                practiceLogs = existingLogs; // Restore logs
+                practiceLogs = existingLogs; 
                 
                 saveGameState();
                 modeSelector.value = currentMode;
@@ -804,12 +810,6 @@
                 nextProblem();
             });
             
-            // If they click cancel, we just need to ensure timers restart if they weren't paused
-            // But since the modal is async, we handle restart in the "YES" block.
-            // If they cancel, we might want to restart timers if they were running?
-            // Let's add logic to restart timers if the confirmation is cancelled/closed.
-            // Actually, simplest is to NOT stop timers until confirmed? 
-            // Or just let them run in background. Let's let them run.
             if (!isPaused) {
                 startTimerDisplay();
                 startTotalTimeInterval();
@@ -853,7 +853,10 @@
             // Clear symbol
             triangleOperatorSymbol.textContent = ''; 
 
-            if (currentMode === 'factFamily' && currentProblem.triangle) {
+            // Determine if we are in a fact family mode
+            const isFactFamily = currentMode.startsWith('factFamily');
+
+            if (isFactFamily && currentProblem.triangle) {
                 problemContainer.style.display = 'none';
                 triangleContainer.style.display = 'flex';
                 
@@ -866,7 +869,7 @@
                 // Set the large symbol
                 triangleOperatorSymbol.textContent = isAddSub ? '+/-' : '×/÷';
 
-            } else { // fastFacts (or fallback)
+            } else { // fastFacts
                 problemContainer.style.display = 'block';
                 triangleContainer.style.display = 'none';
                 
@@ -888,9 +891,22 @@
             while (!validProblemFound && attempts < 15) {
                 attempts++;
                 
-                if (currentMode === 'factFamily') {
+                // Determine operation type based on mode
+                let isAddSubMode = false;
+                let isMulDivMode = false;
+                
+                if (currentMode === 'factFamilyAddSub') isAddSubMode = true;
+                else if (currentMode === 'factFamilyMulDiv') isMulDivMode = true;
+                else {
+                    // fastFacts (Mixed)
+                    // Randomly pick AddSub or MulDiv logic for the problem
+                    if (Math.random() < 0.5) isAddSubMode = true;
+                    else isMulDivMode = true;
+                }
+
+                if (currentMode.startsWith('factFamily')) {
                     // --- Fact Family Generation ---
-                    const isAddSub = Math.random() < 0.5;
+                    const isAddSub = isAddSubMode; // Enforced by mode
                     const maxNum = isAddSub ? maxNumAddSub : maxNumMulDiv;
                     const weightPool = createWeightedList(isAddSub ? operandWeights.addSub : operandWeights.mulDiv, maxNum);
                     
@@ -916,15 +932,12 @@
                     let baseOp, numMain, numSecondary, answerVal;
 
                     if (missingIndex === 0) {
-                        // Missing A: C - B = A (or C / B = A)
                         baseOp = isAddSub ? '-' : '÷';
                         numMain = numC; numSecondary = numB; answerVal = numA;
                     } else if (missingIndex === 1) {
-                        // Missing B: C - A = B (or C / A = B)
                         baseOp = isAddSub ? '-' : '÷';
                         numMain = numC; numSecondary = numA; answerVal = numB;
                     } else { 
-                        // Missing C: A + B = C (or A * B = C)
                         baseOp = isAddSub ? '+' : 'x';
                         numMain = numA; numSecondary = numB; answerVal = numC;
                     }
@@ -939,12 +952,13 @@
                 } 
                 
                 else {
-                    // --- Fast Facts Generation (Existing Logic) ---
-                    const operations = ['+', '-', 'x', '÷'];
-                    op = operations[Math.floor(Math.random() * operations.length)];
+                    // --- Fast Facts Generation (Mixed Operations) ---
+                    // We need to decide specific op based on general type selected above
+                    const ops = isAddSubMode ? ['+', '-'] : ['x', '÷'];
+                    op = ops[Math.floor(Math.random() * ops.length)];
                     
                     let weightPool, maxNum;
-                    if (op === '+' || op === '-') {
+                    if (isAddSubMode) {
                         maxNum = maxNumAddSub;
                         weightPool = createWeightedList(operandWeights.addSub, maxNum);
                     } else {
@@ -981,7 +995,6 @@
             }
             
             if (!currentProblem.op) {
-                 // Fallback problem if generation failed (e.g., empty weight pools)
                  currentProblem = { num1: 2, num2: 2, op: '+', answer: 4, triangle: null };
             }
 
@@ -1016,10 +1029,12 @@
             const isCorrect = (userAnswer === currentProblem.answer);
             const isFast = (answerTime <= TIME_LIMIT_SECONDS);
             
-            // Base score for fact family is based on the components (numA + numB)
-            const baseScore = currentMode === 'factFamily' 
-                ? (currentProblem.triangle.numA + currentProblem.triangle.numB) / 2
-                : (currentProblem.num1 + currentProblem.num2) / 2;
+            let baseScore;
+            if (currentMode.startsWith('factFamily') && currentProblem.triangle) {
+                 baseScore = (currentProblem.triangle.numA + currentProblem.triangle.numB) / 2;
+            } else {
+                 baseScore = (currentProblem.num1 + currentProblem.num2) / 2;
+            }
 
             let scoreChange = 0;
 
@@ -1063,10 +1078,8 @@
         function displayCorrection(problem) {
             
             let correctEquation;
-            if (currentMode === 'factFamily' && problem.triangle) {
+            if (currentMode.startsWith('factFamily') && problem.triangle) {
                 const { numA, numB, numC } = problem.triangle;
-                
-                // For fact family, we use the original problem container to flash the full equation
                 correctEquation = `${numA} ${problem.triangle.isAddSub ? '+' : '×'} ${numB} = ${numC}`;
             } else {
                 correctEquation = `${problem.num1} ${problem.op} ${problem.num2} = ${problem.answer}`;
@@ -1075,7 +1088,6 @@
             answerInput.disabled = true;
             answerInput.blur();
 
-            // Temporarily use the fast facts container for the black-box flash
             const flashTarget = document.getElementById('problem-container');
             
             flashTarget.style.display = 'block';
@@ -1102,26 +1114,23 @@
             let weightPool;
             let opType;
 
-            if (currentMode === 'factFamily' && problem.triangle) {
-                // Fact Family: Adjust weights of the two parts (numA and numB)
+            if (currentMode.startsWith('factFamily') && problem.triangle) {
                 const { numA, numB, isAddSub } = problem.triangle;
                 opType = isAddSub ? 'addSub' : 'mulDiv';
                 weightPool = isAddSub ? operandWeights.addSub : operandWeights.mulDiv;
                 weightsToAdjust = [numA, numB];
             } else {
-                // Fast Facts: Adjust weights of the two operands (num1 and num2)
+                // Fast Facts
                 const { num1, num2, op, answer } = problem;
                 opType = (op === '+' || op === '-') ? 'addSub' : 'mulDiv';
                 weightPool = opType === 'addSub' ? operandWeights.addSub : operandWeights.mulDiv;
                 weightsToAdjust = [num1, num2];
                 
-                // For division, the result (answer) is also a factor
                 if (op === '÷') {
                     weightsToAdjust.push(answer);
                 }
             }
 
-            // Apply adjustment to the relevant numbers
             weightsToAdjust.forEach(num => {
                 if (num >= MASTER_MIN_NUM && num <= MASTER_MAX_NUM) {
                      if (weightPool[num] !== undefined) {
@@ -1253,7 +1262,7 @@
         closeBoxBtn.addEventListener('click', cancelProblem);
         pauseBoxBtn.addEventListener('click', togglePause);
         resetBtn.addEventListener('click', resetGame);
-        logBtn.addEventListener('click', logScore); // New Log Listener
+        logBtn.addEventListener('click', logScore); 
 
         // Modal Listeners
         btnContinue.addEventListener('click', actionContinue);
@@ -1271,9 +1280,28 @@
         
         // Mode change listener
         modeSelector.addEventListener('change', (e) => {
-            if (isPaused) return; 
+            // When mode changes, automatically start a new session
             currentMode = e.target.value;
+            
+            // Reset Session stats
+            stopTimerDisplay();
+            stopTotalTimeInterval();
+            currentScore = 0;
+            totalTimeSeconds = 0;
+            
             saveGameState(); 
+            
+            updateScoreDisplay();
+            updateTotalTimeDisplay();
+            feedback.textContent = "Mode Changed: New Session Started!";
+            
+            if (isPaused) {
+                // If paused, unpause to start the new mode immediately
+                isPaused = false;
+                pauseBoxBtn.textContent = '||';
+            }
+            
+            startTotalTimeInterval();
             nextProblem();    
         });
 
@@ -1322,7 +1350,7 @@
 
 
         // --- Start the app ---
-        window.addEventListener('beforeunload', saveGameState); // Attempt to save on closing
+        window.addEventListener('beforeunload', saveGameState); 
         loadGameState();
 
     </script>
