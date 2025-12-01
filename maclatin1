@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MacLatin v1.0</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-color: #f0f0f0;
+            --window-bg: #ffffff;
+            --border-color: #000000;
+            --highlight: #000000;
+            --text-color: #000000;
+        }
+
+        /* --- Mac System 6 Aesthetic --- */
+        body {
+            font-family: 'VT323', monospace;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+            /* Classic 1-bit dither pattern */
+            background-image: 
+                linear-gradient(45deg, #ccc 25%, transparent 25%), 
+                linear-gradient(-45deg, #ccc 25%, transparent 25%), 
+                linear-gradient(45deg, transparent 75%, #ccc 75%), 
+                linear-gradient(-45deg, transparent 75%, #ccc 75%);
+            background-size: 4px 4px;
+            font-size: 20px;
+            /* Prevent bounce scrolling on iOS */
+            overscroll-behavior: none;
+        }
+
+        .window {
+            background: var(--window-bg);
+            border: 2px solid var(--border-color);
+            box-shadow: 4px 4px 0px rgba(0,0,0,0.2);
+            width: 100%;
+            max-width: 600px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .title-bar {
+            background: repeating-linear-gradient(
+                0deg,
+                #fff,
+                #fff 2px,
+                #000 2px,
+                #000 4px
+            );
+            height: 30px;
+            border-bottom: 2px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 10px;
+        }
+
+        .title-box {
+            background: #fff;
+            padding: 0 10px;
+            font-weight: bold;
+            font-size: 1.2rem;
+            border-left: 2px solid #000;
+            border-right: 2px solid #000;
+        }
+
+        .content {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            min-height: 300px;
+        }
+
+        /* --- Controls & Inputs --- */
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+
+        label {
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        select, input[type="text"] {
+            font-family: 'VT323', monospace;
+            font-size: 1.2rem;
+            padding: 8px;
+            border: 2px solid #000;
+            background: #fff;
+            border-radius: 0;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        /* Custom Retro Checkboxes/Radios */
+        .radio-group {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .radio-option {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        /* --- Buttons --- */
+        .btn {
+            font-family: 'VT323', monospace;
+            background: #fff;
+            border: 2px solid #000;
+            padding: 10px 20px;
+            font-size: 1.4rem;
+            cursor: pointer;
+            box-shadow: 2px 2px 0 #000;
+            text-align: center;
+            transition: transform 0.1s, box-shadow 0.1s;
+            touch-action: manipulation; /* Improves touch response */
+        }
+
+        .btn:active {
+            transform: translate(2px, 2px);
+            box-shadow: 0 0 0 #000;
+            background: #000;
+            color: #fff;
+        }
+
+        .btn-block {
+            width: 100%;
+        }
+
+        .btn-small {
+            font-size: 1rem;
+            padding: 5px 10px;
+        }
+
+        /* --- Game Screens --- */
+        .screen {
+            display: none;
+            height: 100%;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .screen.active {
+            display: flex;
+        }
+
+        /* Game UI */
+        .stats-bar {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px dashed #000;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        .question-box {
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .question-word {
+            font-size: 2.5rem;
+            font-weight: bold;
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        .question-context {
+            font-size: 1rem;
+            font-style: italic;
+            color: #444;
+        }
+
+        /* Multiple Choice Grid */
+        .choices-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        @media (max-width: 450px) {
+            .choices-grid {
+                grid-template-columns: 1fr; /* Stack on small phones */
+            }
+        }
+
+        /* Feedback Area */
+        .feedback-area {
+            min-height: 30px;
+            text-align: center;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .correct { color: #000; text-decoration: underline; }
+        .incorrect { color: #000; background: #000; color: #fff; display: inline-block; padding: 0 5px;}
+
+        /* Log Table */
+        .log-list {
+            max-height: 250px;
+            overflow-y: auto;
+            border: 1px solid #000;
+            padding: 5px;
+            margin-bottom: 15px;
+            list-style: none;
+        }
+        .log-list li {
+            border-bottom: 1px dotted #ccc;
+            padding: 4px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="window">
+    <div class="title-bar">
+        <div class="title-box">MacLatin v1.0</div>
+    </div>
+    
+    <div class="content">
+        
+        <!-- === START SCREEN === -->
+        <div id="start-screen" class="screen active">
+            <div style="text-align: center; margin-bottom: 20px;">
+                <h2>SETTINGS</h2>
+            </div>
+
+            <div class="control-group">
+                <label>Chapter Selection:</label>
+                <select id="chapter-select">
+                    <option value="all">All Chapters (1-7)</option>
+                    <option value="1">Chapter 1</option>
+                    <option value="2">Chapter 2</option>
+                    <option value="3">Chapter 3</option>
+                    <option value="4">Chapter 4</option>
+                    <option value="5">Chapter 5</option>
+                    <option value="6">Chapter 6</option>
+                    <option value="7">Chapter 7</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label>Game Mode:</label>
+                <select id="mode-select">
+                    <option value="multiple">Multiple Choice (Buttons)</option>
+                    <option value="type">Type Answer</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label>Direction:</label>
+                <select id="direction-select">
+                    <option value="lat-eng">Latin &rarr; English</option>
+                    <option value="eng-lat">English &rarr; Latin</option>
+                </select>
+            </div>
+
+            <div style="margin-top: auto;">
+                <button class="btn btn-block" onclick="startGame(false)">START GAME</button>
+            </div>
+        </div>
+
+        <!-- === GAME SCREEN === -->
+        <div id="game-screen" class="screen">
+            <div class="stats-bar">
+                <span id="score-display">Score: 0</span>
+                <span id="progress-display">1 / 10</span>
+            </div>
+
+            <div class="question-box">
+                <span id="q-word" class="question-word">...</span>
+                <span id="q-hint" class="question-context"></span>
+            </div>
+
+            <div id="input-area">
+                <!-- Injected via JS based on mode -->
+            </div>
+
+            <div id="feedback" class="feedback-area"></div>
+
+            <div style="margin-top: auto; display: flex; gap: 10px;">
+                <button class="btn btn-small" onclick="quitGame()">Quit</button>
+            </div>
+        </div>
+
+        <!-- === RESULTS SCREEN === -->
+        <div id="result-screen" class="screen">
+            <div style="text-align: center;">
+                <h2>SESSION COMPLETE</h2>
+                <h1 id="final-score">85%</h1>
+                <p id="result-message">Good job!</p>
+            </div>
+
+            <div id="missed-container" style="display: none;">
+                <label>Missed Items Log:</label>
+                <ul id="log-list" class="log-list">
+                    <!-- Log items go here -->
+                </ul>
+                <button class="btn btn-block" onclick="reviewMissed()">REVIEW MISSED ITEMS</button>
+            </div>
+
+            <div style="margin-top: 15px;">
+                <button class="btn btn-block" onclick="showStartScreen()">NEW GAME</button>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    // --- DATABASE ---
+    // Compiled from the uploaded user document
+    const VOCAB_DB = [
+        // CHAPTER 1
+        { ch: 1, lat: "agricola", eng: "farmer", gender: "m" },
+        { ch: 1, lat: "aqua", eng: "water", gender: "f" },
+        { ch: 1, lat: "athleta", eng: "athlete", gender: "m" },
+        { ch: 1, lat: "filia", eng: "daughter", gender: "f" },
+        { ch: 1, lat: "lupa", eng: "she-wolf", gender: "f" },
+        { ch: 1, lat: "nauta", eng: "sailor", gender: "m" },
+        { ch: 1, lat: "poeta", eng: "poet", gender: "m" },
+        { ch: 1, lat: "puella", eng: "girl", gender: "f" },
+        { ch: 1, lat: "Roma", eng: "Rome", gender: "f" },
+        { ch: 1, lat: "terra", eng: "land", gender: "f" },
+        { ch: 1, lat: "amat", eng: "he/she/it loves" },
+        { ch: 1, lat: "ambulat", eng: "he/she/it walks" },
+        { ch: 1, lat: "curat", eng: "he/she/it takes care of" },
+        { ch: 1, lat: "est", eng: "he/she/it is" },
+        { ch: 1, lat: "bene", eng: "well" },
+        { ch: 1, lat: "postea", eng: "afterwards" },
+        { ch: 1, lat: "et", eng: "and" },
+        { ch: 1, lat: "itaque", eng: "and so" },
+
+        // CHAPTER 2
+        { ch: 2, lat: "fabula", eng: "story", gender: "f" },
+        { ch: 2, lat: "forma", eng: "form", gender: "f" },
+        { ch: 2, lat: "patria", eng: "fatherland", gender: "f" },
+        { ch: 2, lat: "amo", eng: "to love" },
+        { ch: 2, lat: "ambulo", eng: "to walk" },
+        { ch: 2, lat: "curo", eng: "to care for" },
+        { ch: 2, lat: "debeo", eng: "ought" }, // simplified for buttons
+        { ch: 2, lat: "exspecto", eng: "to wait for" },
+        { ch: 2, lat: "habeo", eng: "to have" },
+        { ch: 2, lat: "habito", eng: "to live" },
+        { ch: 2, lat: "narro", eng: "to tell" },
+        { ch: 2, lat: "paro", eng: "to prepare" },
+        { ch: 2, lat: "teneo", eng: "to hold" },
+        { ch: 2, lat: "video", eng: "to see" },
+        { ch: 2, lat: "voco", eng: "to call" },
+        { ch: 2, lat: "diu", eng: "for a long time" },
+        { ch: 2, lat: "nunc", eng: "now" },
+        { ch: 2, lat: "non", eng: "not" },
+
+        // CHAPTER 3
+        { ch: 3, lat: "ager", eng: "field" },
+        { ch: 3, lat: "amicus", eng: "friend" },
+        { ch: 3, lat: "animus", eng: "spirit" },
+        { ch: 3, lat: "casa", eng: "little house" },
+        { ch: 3, lat: "domi", eng: "at home" },
+        { ch: 3, lat: "filius", eng: "son" },
+        { ch: 3, lat: "puer", eng: "boy" },
+        { ch: 3, lat: "rivus", eng: "brook" },
+        { ch: 3, lat: "via", eng: "road" },
+        { ch: 3, lat: "vir", eng: "man" },
+        { ch: 3, lat: "ego", eng: "I" },
+        { ch: 3, lat: "tu", eng: "you" },
+        { ch: 3, lat: "timeo", eng: "to fear" },
+        { ch: 3, lat: "deinde", eng: "then" },
+        { ch: 3, lat: "valde", eng: "very" },
+        { ch: 3, lat: "cum", eng: "with" },
+        { ch: 3, lat: "in", eng: "in" },
+
+        // CHAPTER 4
+        { ch: 4, lat: "bellum", eng: "war" },
+        { ch: 4, lat: "castra", eng: "camp" },
+        { ch: 4, lat: "dolus", eng: "trickery" },
+        { ch: 4, lat: "praemium", eng: "reward" },
+        { ch: 4, lat: "venenum", eng: "poison" },
+        { ch: 4, lat: "vinculum", eng: "chain" },
+        { ch: 4, lat: "bonus", eng: "good" },
+        { ch: 4, lat: "armatus", eng: "armed" },
+        { ch: 4, lat: "iustus", eng: "just" },
+        { ch: 4, lat: "magnus", eng: "large" },
+        { ch: 4, lat: "malus", eng: "bad" },
+        { ch: 4, lat: "praeclarus", eng: "famous" },
+        { ch: 4, lat: "Romanus", eng: "Roman" },
+        { ch: 4, lat: "do", eng: "to give" },
+        { ch: 4, lat: "intro", eng: "to enter" },
+        { ch: 4, lat: "iubeo", eng: "to order" },
+        { ch: 4, lat: "ad", eng: "towards" },
+        { ch: 4, lat: "e/ex", eng: "from" },
+
+        // CHAPTER 5
+        { ch: 5, lat: "auxilium", eng: "help" },
+        { ch: 5, lat: "consilium", eng: "plan" },
+        { ch: 5, lat: "epistula", eng: "letter" },
+        { ch: 5, lat: "familia", eng: "family" },
+        { ch: 5, lat: "gaudium", eng: "joy" },
+        { ch: 5, lat: "lacrima", eng: "tear" },
+        { ch: 5, lat: "longus", eng: "long" },
+        { ch: 5, lat: "miser", eng: "wretched" },
+        { ch: 5, lat: "pulcher", eng: "beautiful" },
+        { ch: 5, lat: "cogito", eng: "to think" },
+        { ch: 5, lat: "doleo", eng: "to feel pain" },
+        { ch: 5, lat: "longe", eng: "far" },
+        { ch: 5, lat: "semper", eng: "always" },
+        { ch: 5, lat: "a/ab", eng: "by/from" },
+        { ch: 5, lat: "de", eng: "about" },
+        { ch: 5, lat: "nam", eng: "for" },
+        { ch: 5, lat: "non solum", eng: "not only" },
+        { ch: 5, lat: "sed etiam", eng: "but also" },
+        { ch: 5, lat: "tamen", eng: "however" },
+
+        // CHAPTER 6
+        { ch: 6, lat: "exemplum", eng: "example" },
+        { ch: 6, lat: "liber", eng: "book" },
+        { ch: 6, lat: "littera", eng: "letter (alphabet)" },
+        { ch: 6, lat: "memoria", eng: "memory" },
+        { ch: 6, lat: "tenebrae", eng: "shadows" },
+        { ch: 6, lat: "vita", eng: "life" },
+        { ch: 6, lat: "multus", eng: "much" },
+        { ch: 6, lat: "doceo", eng: "to teach" },
+        { ch: 6, lat: "firmo", eng: "to strengthen" },
+        { ch: 6, lat: "iaceo", eng: "to lie down" },
+        { ch: 6, lat: "iudico", eng: "to judge" },
+        { ch: 6, lat: "maneo", eng: "to remain" },
+        { ch: 6, lat: "possum", eng: "to be able" },
+        { ch: 6, lat: "servo", eng: "to save" },
+        { ch: 6, lat: "soleo", eng: "to be accustomed" },
+        { ch: 6, lat: "sum", eng: "to be" },
+        { ch: 6, lat: "saepe", eng: "often" },
+        { ch: 6, lat: "propter", eng: "because of" },
+        { ch: 6, lat: "dum", eng: "while" },
+
+        // CHAPTER 7
+        { ch: 7, lat: "amor", eng: "love" },
+        { ch: 7, lat: "deliciae", eng: "delight" },
+        { ch: 7, lat: "digitus", eng: "finger" },
+        { ch: 7, lat: "domina", eng: "mistress" },
+        { ch: 7, lat: "gremium", eng: "lap" },
+        { ch: 7, lat: "oculus", eng: "eye" },
+        { ch: 7, lat: "passer", eng: "sparrow" },
+        { ch: 7, lat: "pax", eng: "peace" },
+        { ch: 7, lat: "senex", eng: "old man" },
+        { ch: 7, lat: "soror", eng: "sister" },
+        { ch: 7, lat: "verbum", eng: "word" },
+        { ch: 7, lat: "se", eng: "reflexive pronoun" },
+        { ch: 7, lat: "meus", eng: "my" },
+        { ch: 7, lat: "severus", eng: "strict" },
+        { ch: 7, lat: "aestimo", eng: "to esteem" },
+        { ch: 7, lat: "invideo", eng: "to envy" },
+        { ch: 7, lat: "puto", eng: "to consider" }
+    ];
+
+    // --- STATE VARIABLES ---
+    let state = {
+        pool: [],
+        missed: [],
+        index: 0,
+        score: 0,
+        mode: 'multiple', // 'multiple' or 'type'
+        direction: 'lat-eng', // 'lat-eng' or 'eng-lat'
+        isReviewing: false
+    };
+
+    // --- DOM ELEMENTS ---
+    const screens = {
+        start: document.getElementById('start-screen'),
+        game: document.getElementById('game-screen'),
+        result: document.getElementById('result-screen')
+    };
+
+    const ui = {
+        chapterSel: document.getElementById('chapter-select'),
+        modeSel: document.getElementById('mode-select'),
+        dirSel: document.getElementById('direction-select'),
+        score: document.getElementById('score-display'),
+        progress: document.getElementById('progress-display'),
+        question: document.getElementById('q-word'),
+        hint: document.getElementById('q-hint'),
+        inputArea: document.getElementById('input-area'),
+        feedback: document.getElementById('feedback'),
+        finalScore: document.getElementById('final-score'),
+        resultMsg: document.getElementById('result-message'),
+        logList: document.getElementById('log-list'),
+        missedContainer: document.getElementById('missed-container')
+    };
+
+    // --- GAME LOGIC ---
+
+    function showScreen(name) {
+        Object.values(screens).forEach(s => s.classList.remove('active'));
+        screens[name].classList.add('active');
+    }
+
+    function shuffle(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+    }
+
+    function startGame(isReview) {
+        state.mode = ui.modeSel.value;
+        state.direction = ui.dirSel.value;
+        state.index = 0;
+        state.score = 0;
+        state.isReviewing = isReview;
+        
+        if (isReview) {
+            // Pool is already set to missed items
+            state.pool = shuffle([...state.missed]);
+            state.missed = []; // Clear missed, they will re-add if missed again
+        } else {
+            // New Game
+            const chVal = ui.chapterSel.value;
+            let tempPool = [];
+            if (chVal === 'all') {
+                tempPool = [...VOCAB_DB];
+            } else {
+                tempPool = VOCAB_DB.filter(item => item.ch == chVal);
+            }
+            state.pool = shuffle(tempPool);
+            state.missed = [];
+        }
+
+        if (state.pool.length === 0) {
+            alert("No vocabulary found for this selection.");
+            return;
+        }
+
+        showScreen('game');
+        loadQuestion();
+    }
+
+    function loadQuestion() {
+        const item = state.pool[state.index];
+        ui.feedback.innerHTML = "";
+        
+        // Update Stats
+        ui.score.textContent = `Score: ${state.score}`;
+        ui.progress.textContent = `${state.index + 1} / ${state.pool.length}`;
+
+        // Set Question Text
+        if (state.direction === 'lat-eng') {
+            ui.question.textContent = item.lat;
+            ui.hint.textContent = "(Latin)";
+        } else {
+            ui.question.textContent = item.eng;
+            ui.hint.textContent = "(English)";
+        }
+
+        // Render Input
+        ui.inputArea.innerHTML = '';
+        
+        if (state.mode === 'multiple') {
+            renderMultipleChoice(item);
+        } else {
+            renderTypingInput();
+        }
+    }
+
+    function renderMultipleChoice(currentItem) {
+        const container = document.createElement('div');
+        container.className = 'choices-grid';
+
+        // Get Distractors
+        let options = [currentItem];
+        let distractors = VOCAB_DB.filter(i => i !== currentItem);
+        shuffle(distractors);
+        
+        // Take 5 distractors
+        options = options.concat(distractors.slice(0, 5));
+        shuffle(options);
+
+        options.forEach(opt => {
+            const btn = document.createElement('button');
+            btn.className = 'btn';
+            
+            if (state.direction === 'lat-eng') {
+                btn.textContent = opt.eng;
+            } else {
+                btn.textContent = opt.lat;
+            }
+
+            btn.onclick = () => checkAnswer(opt, currentItem, btn);
+            container.appendChild(btn);
+        });
+
+        ui.inputArea.appendChild(container);
+    }
+
+    function renderTypingInput() {
+        const input = document.createElement('input');
+        input.type = "text";
+        input.placeholder = "Type answer here...";
+        input.id = "user-typing-input";
+        input.autocomplete = "off";
+        
+        // Handle "Enter" key
+        input.onkeydown = (e) => {
+            if (e.key === 'Enter') {
+                const val = input.value.trim();
+                if(val) checkTypedAnswer(val, state.pool[state.index]);
+            }
+        };
+
+        const subBtn = document.createElement('button');
+        subBtn.textContent = "Submit";
+        subBtn.className = "btn btn-block";
+        subBtn.style.marginTop = "10px";
+        subBtn.onclick = () => {
+            const val = document.getElementById('user-typing-input').value.trim();
+            if(val) checkTypedAnswer(val, state.pool[state.index]);
+        };
+
+        ui.inputArea.appendChild(input);
+        ui.inputArea.appendChild(subBtn);
+        input.focus();
+    }
+
+    // --- ANSWER CHECKING ---
+
+    function checkAnswer(selected, correct, btnElement) {
+        // Disable all buttons to prevent double click
+        const buttons = document.querySelectorAll('.choices-grid button');
+        buttons.forEach(b => b.disabled = true);
+
+        const isCorrect = (selected === correct);
+        
+        if (isCorrect) {
+            state.score++;
+            btnElement.style.background = "#000";
+            btnElement.style.color = "#fff";
+            ui.feedback.innerHTML = "<span class='correct'>Correct!</span>";
+            setTimeout(nextQuestion, 800);
+        } else {
+            state.missed.push(correct);
+            btnElement.style.background = "#fff";
+            btnElement.style.textDecoration = "line-through";
+            
+            // Highlight actual correct one
+            buttons.forEach(b => {
+                const txt = state.direction === 'lat-eng' ? correct.eng : correct.lat;
+                if (b.textContent === txt) {
+                    b.style.border = "2px dashed #000";
+                }
+            });
+
+            const ansText = state.direction === 'lat-eng' ? correct.eng : correct.lat;
+            ui.feedback.innerHTML = `<span class='incorrect'>Incorrect.</span> Answer was: ${ansText}`;
+            setTimeout(nextQuestion, 2500); // Longer pause to read
+        }
+    }
+
+    function checkTypedAnswer(inputVal, correctItem) {
+        const correctText = state.direction === 'lat-eng' ? correctItem.eng : correctItem.lat;
+        
+        // Normalize: lowercase, remove "to " prefix for verbs if user typed it or didn't
+        const cleanInput = normalizeText(inputVal);
+        const cleanCorrect = normalizeText(correctText);
+
+        const isCorrect = (cleanInput === cleanCorrect);
+
+        if (isCorrect) {
+            state.score++;
+            ui.feedback.innerHTML = "<span class='correct'>Correct!</span>";
+            setTimeout(nextQuestion, 800);
+        } else {
+            state.missed.push(correctItem);
+            ui.feedback.innerHTML = `<span class='incorrect'>Incorrect.</span> Answer was: ${correctText}`;
+            setTimeout(nextQuestion, 2500);
+        }
+    }
+
+    function normalizeText(text) {
+        return text.toLowerCase()
+            .replace(/^to\s+/, '') // Remove 'to ' at start
+            .replace(/\s+/g, ' ')  // Collapse spaces
+            .trim();
+    }
+
+    function nextQuestion() {
+        state.index++;
+        if (state.index >= state.pool.length) {
+            endGame();
+        } else {
+            loadQuestion();
+        }
+    }
+
+    function endGame() {
+        showScreen('result');
+        const percentage = Math.round((state.score / state.pool.length) * 100);
+        ui.finalScore.textContent = `${percentage}%`;
+
+        if (percentage === 100) ui.resultMsg.textContent = "Perfect Score!";
+        else if (percentage >= 80) ui.resultMsg.textContent = "Great Job!";
+        else ui.resultMsg.textContent = "Keep Practicing!";
+
+        // Handle Missed Items Log
+        ui.logList.innerHTML = '';
+        if (state.missed.length > 0) {
+            ui.missedContainer.style.display = 'block';
+            state.missed.forEach(item => {
+                const li = document.createElement('li');
+                li.innerHTML = `<span>${item.lat}</span> <span>${item.eng}</span>`;
+                ui.logList.appendChild(li);
+            });
+        } else {
+            ui.missedContainer.style.display = 'none';
+        }
+    }
+
+    function reviewMissed() {
+        if (state.missed.length === 0) return;
+        startGame(true); // True flag sets review mode
+    }
+
+    function showStartScreen() {
+        showScreen('start');
+    }
+
+    function quitGame() {
+        if(confirm("End current game?")) {
+            endGame();
+        }
+    }
+
+</script>
+
+</body>
+</html>
