@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MacLatin v3.0</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-color: #f0f0f0;
+            --window-bg: #ffffff;
+            --border-color: #000000;
+            --highlight: #000000;
+            --text-color: #000000;
+        }
+
+        /* --- Mac System 6 Aesthetic --- */
+        body {
+            font-family: 'VT323', monospace;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+            background-image: 
+                linear-gradient(45deg, #ccc 25%, transparent 25%), 
+                linear-gradient(-45deg, #ccc 25%, transparent 25%), 
+                linear-gradient(45deg, transparent 75%, #ccc 75%), 
+                linear-gradient(-45deg, transparent 75%, #ccc 75%);
+            background-size: 4px 4px;
+            font-size: 20px;
+            overscroll-behavior: none;
+        }
+
+        .window {
+            background: var(--window-bg);
+            border: 2px solid var(--border-color);
+            box-shadow: 4px 4px 0px rgba(0,0,0,0.2);
+            width: 100%;
+            max-width: 600px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .title-bar {
+            background: repeating-linear-gradient(
+                0deg,
+                #fff,
+                #fff 2px,
+                #000 2px,
+                #000 4px
+            );
+            height: 30px;
+            border-bottom: 2px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 10px;
+        }
+
+        .title-box {
+            background: #fff;
+            padding: 0 10px;
+            font-weight: bold;
+            font-size: 1.2rem;
+            border-left: 2px solid #000;
+            border-right: 2px solid #000;
+        }
+
+        .content {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            min-height: 450px; 
+        }
+
+        /* --- Controls & Inputs --- */
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+
+        label {
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        select, input[type="text"] {
+            font-family: 'VT323', monospace;
+            font-size: 1.2rem;
+            padding: 8px;
+            border: 2px solid #000;
+            background: #fff;
+            border-radius: 0;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        /* --- Buttons --- */
+        .btn {
+            font-family: 'VT323', monospace;
+            background: #fff;
+            border: 2px solid #000;
+            padding: 10px 20px;
+            font-size: 1.4rem;
+            cursor: pointer;
+            box-shadow: 2px 2px 0 #000;
+            text-align: center;
+            transition: transform 0.1s, box-shadow 0.1s;
+            touch-action: manipulation;
+        }
+
+        .btn:active {
+            transform: translate(2px, 2px);
+            box-shadow: 0 0 0 #000;
+            background: #000;
+            color: #fff;
+        }
+
+        .btn-block { width: 100%; }
+        .btn-small { font-size: 1rem; padding: 5px 10px; }
+
+        .btn.selected {
+            background: #000;
+            color: #fff;
+            box-shadow: inset 2px 2px 0 #555;
+        }
+
+        /* --- Game Screens --- */
+        .screen {
+            display: none;
+            height: 100%;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .screen.active { display: flex; }
+
+        /* Stats Bar */
+        .stats-bar {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px dashed #000;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        /* Activity Selectors */
+        .activity-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .activity-btn {
+            padding: 10px 5px;
+            font-size: 1.1rem;
+            display: flex;
+            flex-direction: row; /* Changed to row for 2-col layout */
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        /* --- Specific Game UIs --- */
+
+        /* Quiz */
+        .question-box { text-align: center; margin: 20px 0; }
+        .question-word { font-size: 2.5rem; font-weight: bold; display: block; margin-bottom: 10px; }
+        .question-context { font-size: 1rem; font-style: italic; color: #444; }
+        .choices-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+        /* MacMan */
+        .macman-container { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+        #macman-canvas { border: 2px solid #000; background: #fff; }
+        .word-display { font-size: 2rem; letter-spacing: 5px; font-weight: bold; min-height: 40px; }
+        .keyboard-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; width: 100%; }
+        .key-btn { padding: 8px 0; font-size: 1.2rem; min-width: 0; }
+
+        /* Gender Sort */
+        .folder-container { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 20px; }
+        .folder-btn { height: 100px; display: flex; align-items: center; justify-content: center; border-radius: 10px 10px 0 0; flex-direction: column; }
+        .folder-icon { font-size: 2rem; margin-bottom: 5px; }
+
+        /* HyperCard */
+        .card-container {
+            border: 2px solid #000;
+            background: #fff;
+            padding: 20px;
+            height: 250px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 4px 4px 0 #ccc;
+            margin-bottom: 20px;
+            position: relative;
+        }
+        .card-header {
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 20px;
+            background: repeating-linear-gradient(45deg, #000, #000 1px, #fff 1px, #fff 2px);
+            border-bottom: 2px solid #000;
+        }
+        .card-content { text-align: center; }
+        .card-main-text { font-size: 2.5rem; font-weight: bold; margin-bottom: 10px; display: block;}
+        .card-sub-text { font-size: 1.2rem; font-style: italic; color: #555; }
+        .card-controls { display: flex; justify-content: space-between; gap: 10px; }
+        
+        /* Calculator */
+        .calc-screen {
+            background: #e0e0e0;
+            border: 2px solid #000;
+            border-radius: 5px;
+            padding: 10px;
+            margin-bottom: 15px;
+            text-align: right;
+            font-family: 'VT323', monospace;
+            box-shadow: inset 2px 2px 5px rgba(0,0,0,0.2);
+        }
+        .calc-display-top { font-size: 1rem; color: #444; margin-bottom: 5px; }
+        .calc-display-main { font-size: 2rem; font-weight: bold; overflow: hidden; white-space: nowrap; }
+        .calc-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .calc-btn {
+            height: 60px;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+
+        /* Common */
+        .feedback-area { min-height: 30px; text-align: center; font-weight: bold; margin-top: 10px; }
+        .correct { color: #000; text-decoration: underline; }
+        .incorrect { color: #fff; background: #000; display: inline-block; padding: 0 5px;}
+        .log-list { max-height: 250px; overflow-y: auto; border: 1px solid #000; padding: 5px; margin-bottom: 15px; list-style: none; }
+        .log-list li { border-bottom: 1px dotted #ccc; padding: 4px 0; display: flex; justify-content: space-between; }
+        
+        @media (max-width: 450px) {
+            .choices-grid { grid-template-columns: 1fr; }
+            .keyboard-grid { grid-template-columns: repeat(6, 1fr); }
+            .activity-grid { grid-template-columns: 1fr; }
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="window">
+    <div class="title-bar">
+        <div class="title-box">MacLatin v3.0</div>
+    </div>
+    
+    <div class="content">
+        
+        <!-- === START SCREEN === -->
+        <div id="start-screen" class="screen active">
+            <div style="text-align: center; margin-bottom: 10px;">
+                <h2>SELECT ACTIVITY</h2>
+            </div>
+
+            <!-- Activity Selection -->
+            <div class="activity-grid">
+                <button class="btn activity-btn selected" id="btn-act-quiz" onclick="setActivity('quiz')">
+                    <span>?</span> Quiz
+                </button>
+                <button class="btn activity-btn" id="btn-act-macman" onclick="setActivity('macman')">
+                    <span>웃</span> MacMan
+                </button>
+                <button class="btn activity-btn" id="btn-act-sort" onclick="setActivity('sort')">
+                    <span>🗂️</span> Gender Sort
+                </button>
+                <button class="btn activity-btn" id="btn-act-cards" onclick="setActivity('cards')">
+                    <span>❏</span> HyperCards
+                </button>
+                <button class="btn activity-btn" id="btn-act-calc" onclick="setActivity('calc')">
+                    <span>🔢</span> Conjugator
+                </button>
+            </div>
+
+            <!-- Settings -->
+            <div class="control-group">
+                <label>Chapters:</label>
+                <select id="chapter-select">
+                    <option value="all">All Chapters (1-7)</option>
+                    <option value="1">Chapter 1</option>
+                    <option value="2">Chapter 2</option>
+                    <option value="3">Chapter 3</option>
+                    <option value="4">Chapter 4</option>
+                    <option value="5">Chapter 5</option>
+                    <option value="6">Chapter 6</option>
+                    <option value="7">Chapter 7</option>
+                </select>
+            </div>
+
+            <!-- Dynamic Settings Area -->
+            <div id="quiz-settings">
+                <div class="control-group">
+                    <label>Mode:</label>
+                    <select id="mode-select">
+                        <option value="multiple">Multiple Choice</option>
+                        <option value="type">Type Answer</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>Direction:</label>
+                    <select id="direction-select">
+                        <option value="lat-eng">Latin &rarr; English</option>
+                        <option value="eng-lat">English &rarr; Latin</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div id="calc-note" style="display:none; font-size: 0.9rem; font-style: italic; text-align: center;">
+                Note: Conjugator uses verbs from Ch 2, 4, 5, 6.
+            </div>
+
+            <!-- Saved Data Notification -->
+            <div id="saved-data-notice" style="display:none; margin-top: 10px;">
+                <button class="btn btn-block" style="border: 2px dashed #000;" onclick="reviewSavedMissed()">
+                    REVIEW SAVED MISSED ITEMS
+                </button>
+            </div>
+
+            <div style="margin-top: auto;">
+                <button class="btn btn-block" onclick="startGame(false)">START</button>
+            </div>
+        </div>
+
+        <!-- === QUIZ SCREEN === -->
+        <div id="quiz-screen" class="screen">
+            <div class="stats-bar">
+                <span id="quiz-score">Score: 0</span>
+                <span id="quiz-progress">1 / 10</span>
+            </div>
+            <div class="question-box">
+                <span id="quiz-word" class="question-word">...</span>
+                <span id="quiz-hint" class="question-context"></span>
+            </div>
+            <div id="quiz-input-area"></div>
+            <div id="quiz-feedback" class="feedback-area"></div>
+            <div style="margin-top: auto; display: flex; gap: 10px;">
+                <button class="btn btn-small" onclick="quitGame()">Quit</button>
+            </div>
+        </div>
+
+        <!-- === MACMAN SCREEN === -->
+        <div id="macman-screen" class="screen">
+            <div class="stats-bar">
+                <span id="mm-score">Wins: 0</span>
+                <span>MacMan</span>
+            </div>
+            <div class="macman-container">
+                <canvas id="macman-canvas" width="150" height="150"></canvas>
+                <div id="mm-word" class="word-display">_ _ _ _ _</div>
+                <div id="mm-hint" style="font-style: italic;"></div>
+            </div>
+            <div id="mm-keyboard" class="keyboard-grid" style="margin-top: 20px;"></div>
+            <div id="mm-feedback" class="feedback-area"></div>
+            <div style="margin-top: auto;">
+                 <button class="btn btn-small" onclick="quitGame()">Quit</button>
+            </div>
+        </div>
+
+        <!-- === GENDER SORT SCREEN === -->
+        <div id="sort-screen" class="screen">
+             <div class="stats-bar">
+                <span id="sort-score">Score: 0</span>
+                <span>Gender Sort</span>
+            </div>
+            <div class="question-box">
+                <span style="font-size: 1.2rem;">Sort by Gender:</span>
+                <span id="sort-word" class="question-word" style="margin-top: 10px;">...</span>
+                <span id="sort-def" class="question-context"></span>
+            </div>
+            <div class="folder-container">
+                <button class="btn folder-btn" onclick="checkSort('m')"><span class="folder-icon">M</span>Masc</button>
+                <button class="btn folder-btn" onclick="checkSort('f')"><span class="folder-icon">F</span>Fem</button>
+                <button class="btn folder-btn" onclick="checkSort('n')"><span class="folder-icon">N</span>Neut</button>
+            </div>
+            <div id="sort-feedback" class="feedback-area"></div>
+             <div style="margin-top: auto;">
+                 <button class="btn btn-small" onclick="quitGame()">Quit</button>
+            </div>
+        </div>
+
+        <!-- === HYPERCARD SCREEN === -->
+        <div id="cards-screen" class="screen">
+            <div class="stats-bar">
+                <span id="card-count">Card 1 / 10</span>
+                <span>HyperCard Study</span>
+            </div>
+            <div class="card-container" onclick="flipCard()">
+                <div class="card-header"></div>
+                <div class="card-content">
+                    <span id="card-main" class="card-main-text">Word</span>
+                    <span id="card-sub" class="card-sub-text">Definition</span>
+                    <div style="margin-top: 20px; font-size: 0.8rem; color: #888;">(Click card to flip)</div>
+                </div>
+            </div>
+            <div class="card-controls">
+                <button class="btn" onclick="prevCard()">&larr; Prev</button>
+                <button class="btn" onclick="flipCard()">Flip ↻</button>
+                <button class="btn" onclick="nextCard()">Next &rarr;</button>
+            </div>
+            <div style="margin-top: auto;">
+                 <button class="btn btn-small" onclick="quitGame()">Back to Menu</button>
+            </div>
+        </div>
+
+        <!-- === CALCULATOR SCREEN === -->
+        <div id="calc-screen" class="screen">
+            <div class="stats-bar">
+                <span id="calc-score">Score: 0</span>
+                <span>Conjugator</span>
+            </div>
+            
+            <div class="calc-screen">
+                <div id="calc-display-top" class="calc-display-top">amo + tu</div>
+                <div id="calc-display-main" class="calc-display-main">amas</div>
+            </div>
+
+            <div class="calc-grid">
+                <button class="btn calc-btn" onclick="calcInput('o')">-o / -m</button>
+                <button class="btn calc-btn" onclick="calcInput('mus')">-mus</button>
+                <button class="btn calc-btn" onclick="calcInput('s')">-s</button>
+                <button class="btn calc-btn" onclick="calcInput('tis')">-tis</button>
+                <button class="btn calc-btn" onclick="calcInput('t')">-t</button>
+                <button class="btn calc-btn" onclick="calcInput('nt')">-nt</button>
+            </div>
+
+            <div id="calc-feedback" class="feedback-area"></div>
+
+            <div style="margin-top: auto;">
+                 <button class="btn btn-small" onclick="quitGame()">Quit</button>
+            </div>
+        </div>
+
+        <!-- === RESULTS SCREEN === -->
+        <div id="result-screen" class="screen">
+            <div style="text-align: center;">
+                <h2>SESSION COMPLETE</h2>
+                <h1 id="final-score">85%</h1>
+                <p id="result-message">Good job!</p>
+            </div>
+            <div id="missed-container" style="display: none;">
+                <label>Missed Items (Saved):</label>
+                <ul id="log-list" class="log-list"></ul>
+                <button class="btn btn-block" onclick="reviewMissedImmediately()">REVIEW NOW</button>
+            </div>
+            <div style="margin-top: 15px;">
+                <button class="btn btn-block" onclick="showStartScreen()">MAIN MENU</button>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    // --- DATABASE ---
+    const VOCAB_DB = [
+        // CHAPTER 1
+        { ch: 1, lat: "agricola", eng: "farmer", gender: "m" },
+        { ch: 1, lat: "aqua", eng: "water", gender: "f" },
+        { ch: 1, lat: "athleta", eng: "athlete", gender: "m" },
+        { ch: 1, lat: "filia", eng: "daughter", gender: "f" },
+        { ch: 1, lat: "lupa", eng: "she-wolf", gender: "f" },
+        { ch: 1, lat: "nauta", eng: "sailor", gender: "m" },
+        { ch: 1, lat: "poeta", eng: "poet", gender: "m" },
+        { ch: 1, lat: "puella", eng: "girl", gender: "f" },
+        { ch: 1, lat: "Roma", eng: "Rome", gender: "f" },
+        { ch: 1, lat: "terra", eng: "land", gender: "f" },
+        { ch: 1, lat: "amat", eng: "he/she/it loves" },
+        { ch: 1, lat: "ambulat", eng: "he/she/it walks" },
+        { ch: 1, lat: "curat", eng: "he/she/it takes care of" },
+        { ch: 1, lat: "est", eng: "he/she/it is" },
+        { ch: 1, lat: "bene", eng: "well" },
+        { ch: 1, lat: "postea", eng: "afterwards" },
+        { ch: 1, lat: "et", eng: "and" },
+        { ch: 1, lat: "itaque", eng: "and so" },
+        // CHAPTER 2 (Contains Infinitives)
+        { ch: 2, lat: "fabula", eng: "story", gender: "f" },
+        { ch: 2, lat: "forma", eng: "form", gender: "f" },
+        { ch: 2, lat: "patria", eng: "fatherland", gender: "f" },
+        { ch: 2, lat: "amo", eng: "to love" },
+        { ch: 2, lat: "ambulo", eng: "to walk" },
+        { ch: 2, lat: "curo", eng: "to care for" },
+        { ch: 2, lat: "debeo", eng: "to ought/owe" },
+        { ch: 2, lat: "exspecto", eng: "to wait for" },
+        { ch: 2, lat: "habeo", eng: "to have" },
+        { ch: 2, lat: "habito", eng: "to live" },
+        { ch: 2, lat: "narro", eng: "to tell" },
+        { ch: 2, lat: "paro", eng: "to prepare" },
+        { ch: 2, lat: "teneo", eng: "to hold" },
+        { ch: 2, lat: "video", eng: "to see" },
+        { ch: 2, lat: "voco", eng: "to call" },
+        { ch: 2, lat: "diu", eng: "for a long time" },
+        { ch: 2, lat: "nunc", eng: "now" },
+        { ch: 2, lat: "non", eng: "not" },
+        // CHAPTER 3
+        { ch: 3, lat: "ager", eng: "field", gender: "m" },
+        { ch: 3, lat: "amicus", eng: "friend", gender: "m" },
+        { ch: 3, lat: "animus", eng: "spirit", gender: "m" },
+        { ch: 3, lat: "casa", eng: "little house", gender: "f" },
+        { ch: 3, lat: "domi", eng: "at home" },
+        { ch: 3, lat: "filius", eng: "son", gender: "m" },
+        { ch: 3, lat: "puer", eng: "boy", gender: "m" },
+        { ch: 3, lat: "rivus", eng: "brook", gender: "m" },
+        { ch: 3, lat: "via", eng: "road", gender: "f" },
+        { ch: 3, lat: "vir", eng: "man", gender: "m" },
+        { ch: 3, lat: "ego", eng: "I" },
+        { ch: 3, lat: "tu", eng: "you" },
+        { ch: 3, lat: "timeo", eng: "to fear" },
+        { ch: 3, lat: "deinde", eng: "then" },
+        { ch: 3, lat: "valde", eng: "very" },
+        { ch: 3, lat: "cum", eng: "with" },
+        { ch: 3, lat: "in", eng: "in" },
+        // CHAPTER 4
+        { ch: 4, lat: "bellum", eng: "war", gender: "n" },
+        { ch: 4, lat: "castra", eng: "camp", gender: "n" },
+        { ch: 4, lat: "dolus", eng: "trickery", gender: "m" },
+        { ch: 4, lat: "praemium", eng: "reward", gender: "n" },
+        { ch: 4, lat: "venenum", eng: "poison", gender: "n" },
+        { ch: 4, lat: "vinculum", eng: "chain", gender: "n" },
+        { ch: 4, lat: "bonus", eng: "good" },
+        { ch: 4, lat: "armatus", eng: "armed" },
+        { ch: 4, lat: "iustus", eng: "just" },
+        { ch: 4, lat: "magnus", eng: "large" },
+        { ch: 4, lat: "malus", eng: "bad" },
+        { ch: 4, lat: "praeclarus", eng: "famous" },
+        { ch: 4, lat: "Romanus", eng: "Roman" },
+        { ch: 4, lat: "do", eng: "to give" },
+        { ch: 4, lat: "intro", eng: "to enter" },
+        { ch: 4, lat: "iubeo", eng: "to order" },
+        { ch: 4, lat: "ad", eng: "towards" },
+        { ch: 4, lat: "e/ex", eng: "from" },
+        // CHAPTER 5
+        { ch: 5, lat: "auxilium", eng: "help", gender: "n" },
+        { ch: 5, lat: "consilium", eng: "plan", gender: "n" },
+        { ch: 5, lat: "epistula", eng: "letter", gender: "f" },
+        { ch: 5, lat: "familia", eng: "family", gender: "f" },
+        { ch: 5, lat: "gaudium", eng: "joy", gender: "n" },
+        { ch: 5, lat: "lacrima", eng: "tear", gender: "f" },
+        { ch: 5, lat: "longus", eng: "long" },
+        { ch: 5, lat: "miser", eng: "wretched" },
+        { ch: 5, lat: "pulcher", eng: "beautiful" },
+        { ch: 5, lat: "cogito", eng: "to think" },
+        { ch: 5, lat: "doleo", eng: "to feel pain" },
+        { ch: 5, lat: "longe", eng: "far" },
+        { ch: 5, lat: "semper", eng: "always" },
+        { ch: 5, lat: "a/ab", eng: "by/from" },
+        { ch: 5, lat: "de", eng: "about" },
+        { ch: 5, lat: "nam", eng: "for" },
+        { ch: 5, lat: "non solum", eng: "not only" },
+        { ch: 5, lat: "sed etiam", eng: "but also" },
+        { ch: 5, lat: "tamen", eng: "however" },
+        // CHAPTER 6
+        { ch: 6, lat: "exemplum", eng: "example", gender: "n" },
+        { ch: 6, lat: "liber", eng: "book", gender: "m" },
+        { ch: 6, lat: "littera", eng: "letter (alphabet)", gender: "f" },
+        { ch: 6, lat: "memoria", eng: "memory", gender: "f" },
+        { ch: 6, lat: "tenebrae", eng: "shadows", gender: "f" },
+        { ch: 6, lat: "vita", eng: "life", gender: "f" },
+        { ch: 6, lat: "multus", eng: "much" },
+        { ch: 6, lat: "doceo", eng: "to teach" },
+        { ch: 6, lat: "firmo", eng: "to strengthen" },
+        { ch: 6, lat: "iaceo", eng: "to lie down" },
+        { ch: 6, lat: "iudico", eng: "to judge" },
+        { ch: 6, lat: "maneo", eng: "to remain" },
+        { ch: 6, lat: "possum", eng: "to be able" },
+        { ch: 6, lat: "servo", eng: "to save" },
+        { ch: 6, lat: "soleo", eng: "to be accustomed" },
+        { ch: 6, lat: "sum", eng: "to be" },
+        { ch: 6, lat: "saepe", eng: "often" },
+        { ch: 6, lat: "propter", eng: "because of" },
+        { ch: 6, lat: "dum", eng: "while" },
+        // CHAPTER 7
+        { ch: 7, lat: "amor", eng: "love", gender: "m" },
+        { ch: 7, lat: "deliciae", eng: "delight", gender: "f" },
+        { ch: 7, lat: "digitus", eng: "finger", gender: "m" },
+        { ch: 7, lat: "domina", eng: "mistress", gender: "f" },
+        { ch: 7, lat: "gremium", eng: "lap", gender: "n" },
+        { ch: 7, lat: "oculus", eng: "eye", gender: "m" },
+        { ch: 7, lat: "passer", eng: "sparrow", gender: "m" },
+        { ch: 7, lat: "pax", eng: "peace", gender: "f" },
+        { ch: 7, lat: "senex", eng: "old man", gender: "m" },
+        { ch: 7, lat: "soror", eng: "sister", gender: "f" },
+        { ch: 7, lat: "verbum", eng: "word", gender: "n" },
+        { ch: 7, lat: "se", eng: "reflexive pronoun" },
+        { ch: 7, lat: "meus", eng: "my" },
+        { ch: 7, lat: "severus", eng: "strict" },
+        { ch: 7, lat: "aestimo", eng: "to esteem" },
+        { ch: 7, lat: "invideo", eng: "to envy" },
+        { ch: 7, lat: "puto", eng: "to consider" }
+    ];
+
+    // --- STATE VARIABLES ---
+    let state = {
+        activity: 'quiz', // 'quiz', 'macman', 'sort', 'cards', 'calc'
+        pool: [],
+        missed: [],
+        index: 0,
+        score: 0,
+        settings: {
+            mode: 'multiple',
+            direction: 'lat-eng',
+            chapter: 'all'
+        },
+        savedMissed: [],
+        
+        // MacMan specific
+        mmWord: "",
+        mmGuesses: [],
+        mmWrongCount: 0,
+        
+        // Sort specific
+        sortItem: null,
+        
+        // Cards specific
+        isCardFlipped: false,
+        
+        // Calculator specific
+        calcVerb: null, // { lat: 'amo', eng: 'to love', stem: 'ama', type: 1 }
+        calcPerson: 0, // 0-5 index for o,s,t,mus,tis,nt
+    };
+
+    const screens = {
+        start: document.getElementById('start-screen'),
+        quiz: document.getElementById('quiz-screen'),
+        macman: document.getElementById('macman-screen'),
+        sort: document.getElementById('sort-screen'),
+        cards: document.getElementById('cards-screen'),
+        calc: document.getElementById('calc-screen'),
+        result: document.getElementById('result-screen')
+    };
+
+    // --- PERSISTENCE ---
+    const STORAGE_KEY = 'maclatin_save_v2';
+    function loadData() {
+        const json = localStorage.getItem(STORAGE_KEY);
+        if (json) {
+            try {
+                const data = JSON.parse(json);
+                state.savedMissed = data.missed || [];
+                if (state.savedMissed.length > 0) {
+                    document.getElementById('saved-data-notice').style.display = 'block';
+                }
+            } catch (e) { }
+        }
+    }
+    function saveData() {
+        const uniqueMissed = new Map();
+        state.savedMissed.forEach(item => uniqueMissed.set(item.lat, item));
+        state.missed.forEach(item => uniqueMissed.set(item.lat, item));
+        const toSave = Array.from(uniqueMissed.values());
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ missed: toSave, lastSaved: new Date().getTime() }));
+        state.savedMissed = toSave;
+    }
+    window.onload = function() { loadData(); };
+
+    // --- MENU LOGIC ---
+    function setActivity(act) {
+        state.activity = act;
+        document.querySelectorAll('.activity-btn').forEach(b => b.classList.remove('selected'));
+        document.getElementById(`btn-act-${act}`).classList.add('selected');
+        
+        // Toggle Settings
+        document.getElementById('quiz-settings').style.display = (act === 'quiz') ? 'block' : 'none';
+        document.getElementById('calc-note').style.display = (act === 'calc') ? 'block' : 'none';
+    }
+
+    function showScreen(name) {
+        Object.values(screens).forEach(s => s.classList.remove('active'));
+        screens[name].classList.add('active');
+    }
+
+    function shuffle(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+    }
+
+    // --- GAME START ---
+    function startGame(isReview) {
+        state.settings.chapter = document.getElementById('chapter-select').value;
+        state.settings.mode = document.getElementById('mode-select').value;
+        state.settings.direction = document.getElementById('direction-select').value;
+        state.missed = [];
+        state.score = 0;
+        state.index = 0;
+
+        // Build Pool
+        let pool = [];
+        if (isReview) {
+            pool = [...state.savedMissed];
+        } else {
+            if (state.settings.chapter === 'all') {
+                pool = [...VOCAB_DB];
+            } else {
+                pool = VOCAB_DB.filter(item => item.ch == state.settings.chapter);
+            }
+        }
+
+        // Filters
+        if (state.activity === 'sort') {
+            pool = pool.filter(item => item.gender);
+            if(pool.length === 0) return alert("No words with gender in this selection.");
+        } 
+        else if (state.activity === 'calc') {
+            // Find verbs: must have "to " in English or be 1st person 'o' in Latin
+            pool = pool.filter(item => item.eng.startsWith("to ") && item.lat.endsWith("o"));
+            if(pool.length === 0) return alert("No conjugatable verbs in this selection (Try Ch 2, 4, 5, 6).");
+        }
+
+        state.pool = shuffle(pool);
+
+        if (state.pool.length === 0) return alert("No vocabulary found.");
+
+        // Route
+        if (state.activity === 'quiz') startQuiz();
+        else if (state.activity === 'macman') startMacMan();
+        else if (state.activity === 'sort') startSort();
+        else if (state.activity === 'cards') startCards();
+        else if (state.activity === 'calc') startCalc();
+    }
+
+    function quitGame() {
+        if(confirm("Quit to Menu? Progress will be saved.")) {
+            if (state.activity !== 'cards') saveData(); // Don't save missed for flashcards
+            showStartScreen();
+            loadData();
+        }
+    }
+    
+    function showStartScreen() { showScreen('start'); }
+    function reviewSavedMissed() { startGame(true); }
+    function reviewMissedImmediately() { state.savedMissed = [...state.missed]; startGame(true); }
+
+    // --- HELPER: End Game ---
+    function endGame() {
+        saveData();
+        showScreen('result');
+        const percentage = Math.round((state.score / (state.pool.length || 1)) * 100);
+        document.getElementById('final-score').textContent = `${percentage}%`;
+        
+        const list = document.getElementById('log-list');
+        list.innerHTML = '';
+        const container = document.getElementById('missed-container');
+        
+        if (state.missed.length > 0) {
+            container.style.display = 'block';
+            state.missed.forEach(item => {
+                const li = document.createElement('li');
+                li.innerHTML = `<span>${item.lat}</span> <span>${item.eng}</span>`;
+                list.appendChild(li);
+            });
+        } else {
+            container.style.display = 'none';
+        }
+    }
+
+
+    // ==========================================
+    // === ACTIVITY: QUIZ =======================
+    // ==========================================
+    function startQuiz() { showScreen('quiz'); loadQuizQuestion(); }
+    function loadQuizQuestion() {
+        if (state.index >= state.pool.length) { endGame(); return; }
+        const item = state.pool[state.index];
+        document.getElementById('quiz-score').textContent = `Score: ${state.score}`;
+        document.getElementById('quiz-progress').textContent = `${state.index + 1} / ${state.pool.length}`;
+        document.getElementById('quiz-feedback').innerHTML = "";
+        
+        const isLat = state.settings.direction === 'lat-eng';
+        document.getElementById('quiz-word').textContent = isLat ? item.lat : item.eng;
+        document.getElementById('quiz-hint').textContent = isLat ? "(Latin)" : "(English)";
+        
+        const container = document.getElementById('quiz-input-area');
+        container.innerHTML = '';
+        
+        if (state.settings.mode === 'multiple') {
+            const grid = document.createElement('div');
+            grid.className = 'choices-grid';
+            let opts = [item].concat(shuffle(VOCAB_DB.filter(x => x!==item)).slice(0,5));
+            shuffle(opts).forEach(opt => {
+                const btn = document.createElement('button');
+                btn.className = 'btn';
+                btn.textContent = isLat ? opt.eng : opt.lat;
+                btn.onclick = () => {
+                    grid.querySelectorAll('button').forEach(b => b.disabled=true);
+                    if(opt===item) {
+                        state.score++;
+                        btn.style.background="#000"; btn.style.color="#fff";
+                        document.getElementById('quiz-feedback').innerHTML = "<span class='correct'>Correct!</span>";
+                        setTimeout(() => { state.index++; loadQuizQuestion(); }, 800);
+                    } else {
+                        state.missed.push(item);
+                        btn.style.textDecoration="line-through";
+                        document.getElementById('quiz-feedback').innerHTML = `<span class='incorrect'>Incorrect.</span> ${isLat ? item.eng : item.lat}`;
+                        setTimeout(() => { state.index++; loadQuizQuestion(); }, 2000);
+                    }
+                };
+                grid.appendChild(btn);
+            });
+            container.appendChild(grid);
+        } else {
+            const inp = document.createElement('input');
+            inp.type="text"; inp.autocomplete="off"; inp.placeholder="Type answer...";
+            const check = () => {
+                const val = inp.value.trim().toLowerCase();
+                const ans = isLat ? item.eng : item.lat;
+                const norm = ans.toLowerCase().replace(/^to\s+/,'').trim();
+                if(val===norm) {
+                    state.score++;
+                    document.getElementById('quiz-feedback').innerHTML = "<span class='correct'>Correct!</span>";
+                    setTimeout(() => { state.index++; loadQuizQuestion(); }, 800);
+                } else {
+                    state.missed.push(item);
+                    document.getElementById('quiz-feedback').innerHTML = `<span class='incorrect'>Incorrect.</span> ${ans}`;
+                    setTimeout(() => { state.index++; loadQuizQuestion(); }, 2000);
+                }
+            };
+            inp.onkeydown=(e)=>{if(e.key==='Enter'&&inp.value)check();};
+            const sbtn = document.createElement('button'); sbtn.className='btn btn-block'; sbtn.innerText='Submit'; sbtn.style.marginTop='10px'; sbtn.onclick=()=>check();
+            container.appendChild(inp); container.appendChild(sbtn); inp.focus();
+        }
+    }
+
+
+    // ==========================================
+    // === ACTIVITY: MACMAN =====================
+    // ==========================================
+    function startMacMan() { 
+        showScreen('macman'); 
+        const kb = document.querySelector('.keyboard-grid');
+        kb.innerHTML = '';
+        "abcdefghijklmnopqrstuvwxyz".split('').forEach(c => {
+            const b = document.createElement('button');
+            b.className='btn key-btn'; b.textContent=c; b.id=`key-${c}`;
+            b.onclick=()=>handleMMGuess(c); kb.appendChild(b);
+        });
+        loadMMRound();
+    }
+    function loadMMRound() {
+        if(state.index>=state.pool.length) { endGame(); return; }
+        const item = state.pool[state.index];
+        state.mmWord = item.lat.toLowerCase();
+        state.mmGuesses=[]; state.mmWrongCount=0;
+        drawMM(0); updateMMUI(item.eng);
+        document.querySelectorAll('.key-btn').forEach(b=>{b.disabled=false; b.style.background='#fff'; b.style.color='#000';});
+        document.getElementById('mm-feedback').textContent='';
+    }
+    function handleMMGuess(c) {
+        if(state.mmGuesses.includes(c)) return;
+        state.mmGuesses.push(c);
+        const btn = document.getElementById(`key-${c}`);
+        btn.disabled=true;
+        if(state.mmWord.includes(c)) {
+            btn.style.background='#000'; btn.style.color='#fff';
+            if(state.mmWord.split('').every(x=>state.mmGuesses.includes(x))) {
+                state.score++;
+                document.getElementById('mm-feedback').innerHTML="<span class='correct'>Got it!</span>";
+                setTimeout(()=>{state.index++; loadMMRound();},1000);
+            }
+        } else {
+            state.mmWrongCount++;
+            drawMM(state.mmWrongCount);
+            if(state.mmWrongCount>=6) {
+                state.missed.push(state.pool[state.index]);
+                document.getElementById('mm-word').textContent = state.mmWord.split('').join(' ');
+                document.getElementById('mm-feedback').innerHTML="<span class='incorrect'>Oh no!</span>";
+                setTimeout(()=>{state.index++; loadMMRound();},2000);
+            }
+        }
+        updateMMUI();
+    }
+    function updateMMUI(hint) {
+        document.getElementById('mm-word').textContent = state.mmWord.split('').map(c=>state.mmGuesses.includes(c)?c:'_').join(' ');
+        if(hint) document.getElementById('mm-hint').textContent = `Hint: ${hint}`;
+        document.getElementById('mm-score').textContent=`Wins: ${state.score}`;
+    }
+    function drawMM(s) {
+        const ctx = document.getElementById('macman-canvas').getContext('2d');
+        if(s===0) ctx.clearRect(0,0,150,150);
+        ctx.lineWidth=3; ctx.strokeStyle='#000'; ctx.beginPath();
+        if(s>=1){ctx.moveTo(20,130);ctx.lineTo(130,130);ctx.moveTo(40,130);ctx.lineTo(40,20);ctx.lineTo(100,20);ctx.lineTo(100,40);}
+        if(s>=2){ctx.moveTo(110,50);ctx.arc(100,50,10,0,Math.PI*2);}
+        if(s>=3){ctx.moveTo(100,60);ctx.lineTo(100,100);}
+        if(s>=4){ctx.moveTo(100,70);ctx.lineTo(80,90);}
+        if(s>=5){ctx.moveTo(100,70);ctx.lineTo(120,90);}
+        if(s>=6){ctx.moveTo(100,100);ctx.lineTo(85,125);ctx.moveTo(100,100);ctx.lineTo(115,125);ctx.font="12px sans-serif";ctx.fillText("x x",92,53);}
+        ctx.stroke();
+    }
+
+
+    // ==========================================
+    // === ACTIVITY: SORT =======================
+    // ==========================================
+    function startSort() { showScreen('sort'); loadSortRound(); }
+    function loadSortRound() {
+        if(state.index>=state.pool.length) { endGame(); return; }
+        state.sortItem = state.pool[state.index];
+        document.getElementById('sort-word').textContent = state.sortItem.lat;
+        document.getElementById('sort-def').textContent = state.sortItem.eng;
+        document.getElementById('sort-score').textContent = `Score: ${state.score}`;
+        document.getElementById('sort-feedback').textContent='';
+        document.querySelectorAll('.folder-btn').forEach(b=>b.disabled=false);
+    }
+    function checkSort(sel) {
+        document.querySelectorAll('.folder-btn').forEach(b=>b.disabled=true);
+        const correct = state.sortItem.gender.toLowerCase();
+        if(sel===correct) {
+            state.score++;
+            document.getElementById('sort-feedback').innerHTML="<span class='correct'>Correct!</span>";
+            setTimeout(()=>{state.index++; loadSortRound();},600);
+        } else {
+            state.missed.push(state.sortItem);
+            document.getElementById('sort-feedback').innerHTML=`<span class='incorrect'>Oops.</span> It was ${correct.toUpperCase()}`;
+            setTimeout(()=>{state.index++; loadSortRound();},1500);
+        }
+    }
+
+
+    // ==========================================
+    // === ACTIVITY: HYPERCARD ==================
+    // ==========================================
+    function startCards() {
+        showScreen('cards');
+        state.index = 0;
+        loadCard();
+    }
+    
+    function loadCard() {
+        const item = state.pool[state.index];
+        state.isCardFlipped = false;
+        document.getElementById('card-count').textContent = `Card ${state.index + 1} / ${state.pool.length}`;
+        updateCardFace(item);
+    }
+
+    function updateCardFace(item) {
+        const main = document.getElementById('card-main');
+        const sub = document.getElementById('card-sub');
+        
+        if (!state.isCardFlipped) {
+            // Front: Latin
+            main.textContent = item.lat;
+            sub.textContent = "(Latin)";
+            main.style.fontStyle = 'normal';
+        } else {
+            // Back: English
+            main.textContent = item.eng;
+            sub.textContent = item.gender ? `Gender: ${item.gender.toUpperCase()}` : '';
+            main.style.fontStyle = 'italic';
+        }
+    }
+
+    function flipCard() {
+        state.isCardFlipped = !state.isCardFlipped;
+        updateCardFace(state.pool[state.index]);
+    }
+
+    function nextCard() {
+        state.index++;
+        if (state.index >= state.pool.length) state.index = 0; // Loop
+        loadCard();
+    }
+
+    function prevCard() {
+        state.index--;
+        if (state.index < 0) state.index = state.pool.length - 1; // Loop
+        loadCard();
+    }
+
+
+    // ==========================================
+    // === ACTIVITY: CONJUGATOR =================
+    // ==========================================
+    // Standard Endings: o, s, t, mus, tis, nt
+    const ENDINGS = ['o', 's', 't', 'mus', 'tis', 'nt'];
+    const PRONOUNS = ['Ego (I)', 'Tu (You)', 'Is/Ea (He/She)', 'Nos (We)', 'Vos (You pl)', 'Ei/Eae (They)'];
+
+    function startCalc() {
+        showScreen('calc');
+        loadCalcRound();
+    }
+
+    function loadCalcRound() {
+        if (state.index >= state.pool.length) { endGame(); return; }
+        
+        // 1. Pick verb
+        const item = state.pool[state.index];
+        
+        // 2. Determine Conjugation & Stem
+        // If lat ends in 'o', it's 1st person sg.
+        // If 2nd conj: habeo -> habere. Stem is 'habe'.
+        // If 1st conj: amo -> amare. Stem is 'ama'.
+        // Simple heuristic based on vocab list:
+        // Ch 1/2 "are" verbs usually listed as "amo" (1st).
+        // Ch 2 "ere" verbs listed as "video" (2nd).
+        
+        let stem = "";
+        let conjType = 1; // 1 or 2
+        
+        // Detect 2nd conjugation (usually ends in -eo in 1st person or -ere in inf)
+        if (item.lat.endsWith("eo")) {
+            conjType = 2;
+            stem = item.lat.substring(0, item.lat.length - 1); // habeo -> habe
+        } else {
+            conjType = 1;
+            // amo -> am (root) -> ama (stem)
+            // But we need to handle the 'a' deletion in 1st person separately
+            stem = item.lat.substring(0, item.lat.length - 1) + "a"; // amo -> ama
+        }
+
+        state.calcVerb = { ...item, stem: stem, conjType: conjType };
+
+        // 3. Pick random Person (0-5)
+        state.calcPerson = Math.floor(Math.random() * 6);
+
+        // Update UI
+        document.getElementById('calc-display-top').textContent = `${item.lat} + ${PRONOUNS[state.calcPerson]}`;
+        
+        // Show Stem in main display... wait for user input
+        // For 1st person sg 1st conj, stem drops 'a'. 
+        // Let's just show the prompt and let user type ending.
+        let displayStem = stem;
+        
+        // 1st Conj (ama) + 1st Person (o) -> amo (stem loses a)
+        if (conjType === 1 && state.calcPerson === 0) {
+            displayStem = stem.substring(0, stem.length - 1);
+        }
+
+        document.getElementById('calc-display-main').textContent = displayStem + "...";
+        document.getElementById('calc-feedback').innerHTML = "";
+        
+        // Reset buttons
+        document.querySelectorAll('.calc-btn').forEach(b => b.disabled = false);
+    }
+
+    function calcInput(ending) {
+        // Correct ending?
+        const correctEnding = ENDINGS[state.calcPerson];
+        
+        // Special Case: 1st person singular often just 'o' in list, but button says -o/-m
+        // We treat 'o' and 'm' buttons logic if we had them, but here we just have 'o' button representing 1st sg
+        
+        if (ending === correctEnding) {
+            // Construct full word
+            let fullWord = "";
+            let stem = state.calcVerb.stem;
+            
+            // 1st conj: ama + o -> amo
+            if (state.calcVerb.conjType === 1 && state.calcPerson === 0) {
+                stem = stem.substring(0, stem.length - 1);
+            }
+            
+            fullWord = stem + ending;
+
+            document.getElementById('calc-display-main').textContent = fullWord;
+            state.score++;
+            document.getElementById('calc-feedback').innerHTML = "<span class='correct'>Correct!</span>";
+            
+            // Disable all buttons
+            document.querySelectorAll('.calc-btn').forEach(b => b.disabled = true);
+            
+            setTimeout(() => { state.index++; loadCalcRound(); }, 1000);
+
+        } else {
+            state.missed.push(state.calcVerb);
+            document.getElementById('calc-feedback').innerHTML = `<span class='incorrect'>Error.</span> Need: -${correctEnding}`;
+            // Disable only the clicked button? Or fail round?
+            // Let's fail round to keep it moving
+            document.querySelectorAll('.calc-btn').forEach(b => b.disabled = true);
+            setTimeout(() => { state.index++; loadCalcRound(); }, 1500);
+        }
+    }
+
+</script>
+</body>
+</html>
