@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"> <!-- Prevent zoom on tap -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"> 
     <title>System 6 Math Facts - Fact Family</title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -20,9 +20,8 @@
             align-items: center;
             min-height: 100vh;
             margin: 0;
-            padding: 10px; /* Reduced padding for mobile */
+            padding: 5px; /* Minimal padding for mobile */
             box-sizing: border-box;
-            /* Use a tiling 1-bit pattern for the background, classic Mac style */
             background-image: linear-gradient(45deg, #ccc 25%, transparent 25%), 
                               linear-gradient(-45deg, #ccc 25%, transparent 25%), 
                               linear-gradient(45deg, transparent 75%, #ccc 75%), 
@@ -41,6 +40,9 @@
             flex-direction: column;
             position: relative;
             z-index: 1;
+            /* Ensure it fits on screen */
+            max-height: 98vh; 
+            overflow: hidden; 
         }
 
         /* Modal Overlay */
@@ -50,30 +52,18 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0, 0, 0, 0.5); /* Dim background */
+            background-color: rgba(0, 0, 0, 0.5); 
             display: flex;
             justify-content: center;
             align-items: center;
-            z-index: 100; /* Sit on top */
-            display: none; /* Hidden by default */
+            z-index: 100; 
+            display: none; 
         }
         
-        /* Higher z-index for the confirmation alert so it sits over other modals */
-        #confirmation-modal {
-            z-index: 200;
-        }
+        #confirmation-modal { z-index: 200; }
 
-        /* Modal Window Specifics */
-        .modal-window {
-            max-width: 550px; /* Widened for the extra column */
-            box-shadow: 10px 10px 0px #000; 
-        }
-        
-        /* Alert Window Specifics */
-        .alert-window {
-            max-width: 350px;
-            box-shadow: 10px 10px 0px #000;
-        }
+        .modal-window { max-width: 550px; box-shadow: 10px 10px 0px #000; }
+        .alert-window { max-width: 350px; box-shadow: 10px 10px 0px #000; }
 
         /* Title bar styling */
         .title-bar {
@@ -84,24 +74,19 @@
             justify-content: space-between;
             align-items: center;
             user-select: none;
+            flex-shrink: 0; /* Prevent shrinking */
         }
 
-        /* Stripes on the title bar */
         .title-bar-stripes {
             flex-grow: 1;
             background-image: repeating-linear-gradient(
-                to bottom,
-                #000,
-                #000 2px,
-                #fff 2px,
-                #fff 4px
+                to bottom, #000, #000 2px, #fff 2px, #fff 4px
             );
             height: 14px;
             margin-left: 8px;
             margin-right: 8px;
         }
 
-        /* Control Boxes (Close/Skip and Pause/Play) */
         .close-box, .pause-box {
             width: 18px;
             height: 18px;
@@ -117,74 +102,130 @@
             box-shadow: 1px 1px 0px #000;
             transform: translate(1px, 1px);
         }
-        /* Pause box styling */
-        .pause-box {
-            margin-left: 4px; 
-            font-size: 14px;
-            line-height: 16px;
+        .pause-box { margin-left: 4px; font-size: 14px; line-height: 16px; }
+
+        /* --- Top Dashboard Section --- */
+        .dashboard {
+            border-bottom: 2px solid #000;
+            background-color: #f8f8f8;
+            padding: 5px;
+            flex-shrink: 0;
         }
 
-        /* Mode Selector Styling */
+        /* Info bar (Score and Timer) */
+        .info-bar {
+            display: flex;
+            justify-content: space-between;
+            font-size: 20px;
+            padding: 2px 8px;
+            margin-bottom: 5px;
+        }
+
+        /* Button styling */
+        .button-bar {
+            padding: 2px 8px;
+            display: flex;
+            justify-content: space-between; 
+            gap: 5px; 
+            margin-bottom: 5px;
+        }
+        .btn {
+            font-family: 'VT323', monospace;
+            font-size: 18px; /* Slightly smaller for compact fit */
+            background-color: #fff;
+            border: 2px solid #000;
+            padding: 4px 10px;
+            box-shadow: 2px 2px 0px #000;
+            cursor: pointer;
+            user-select: none;
+            flex-grow: 1; /* Stretch buttons */
+        }
+        .btn:active {
+            box-shadow: 1px 1px 0px #000;
+            transform: translate(1px, 1px);
+        }
+        .btn-active-mode {
+            background-color: #000;
+            color: #fff;
+            box-shadow: inset 2px 2px 0px #555;
+        }
+
+        /* Mode Selector */
         .mode-selector {
-            padding: 8px 16px;
-            border-bottom: 2px solid #000;
-            text-align: left;
+            padding: 2px 8px;
+            text-align: center;
             font-size: 18px;
             display: flex;
             align-items: center;
+            justify-content: center;
         }
         #game-mode {
             font-family: 'VT323', monospace;
             font-size: 18px;
             border: 2px solid #000;
             margin-left: 8px;
-            padding: 2px;
+            padding: 0px;
             background-color: #fff;
-            box-shadow: 1px 1px 0px #000;
         }
 
-
-        /* Main content area */
+        /* --- Main Content Area --- */
         .content {
-            padding: 16px;
+            padding: 10px;
             text-align: center;
             font-size: 24px;
             flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center; /* Center content vertically */
+            overflow-y: auto; /* Allow scrolling if really needed */
         }
 
-        /* Problem display (for Fast Facts mode) */
-        #problem-container {
-            font-size: 64px;
-            margin: 20px 0;
-            height: 120px; 
-            line-height: 120px;
-            letter-spacing: 4px;
-            transition: background-color 0.05s ease-out, color 0.05s ease-out; 
+        /* Layout Container for Problem + Input */
+        #active-area {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 10px;
         }
-        /* Style for the correction display */
+        /* Layout: Fast Facts (Side-by-Side) */
+        #active-area.fast-facts {
+            flex-direction: row;
+            gap: 10px;
+        }
+        /* Layout: Triangle (Stacked) */
+        #active-area.triangle {
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        /* Problem display */
+        #problem-container {
+            font-size: 56px; /* Slightly reduced */
+            letter-spacing: 2px;
+            transition: background-color 0.05s ease-out, color 0.05s ease-out; 
+            padding: 0 10px;
+        }
         .correction-display {
             background-color: #000 !important; 
             color: #fff !important; 
             transition: none; 
+            border-radius: 4px;
         }
 
-        /* --- Fact Triangle Styling --- */
+        /* Triangle Container */
         #triangle-container {
             position: relative; 
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            margin: 20px auto; 
-            height: 160px; 
-            font-size: 48px;
-            line-height: 1.2;
+            margin: 5px auto; 
+            height: 140px; /* Reduced height */
             width: 100%; 
             max-width: 280px; 
             box-sizing: border-box;
         }
         
-        /* Operation Symbol Styling - Centered in Triangle */
         #triangle-operator-symbol {
             position: absolute;
             top: 60%; 
@@ -199,207 +240,110 @@
             white-space: nowrap;
         }
         
-        /* Fact Family Rows */
-        #triangle-top-wrapper {
-            margin-bottom: 20px; 
-            z-index: 2; 
-        }
+        #triangle-top-wrapper { margin-bottom: 15px; z-index: 2; }
         #triangle-bottom-row {
-            display: flex;
-            justify-content: space-between;
-            width: 100%;
-            padding: 0 30px; 
-            box-sizing: border-box;
-            z-index: 2; 
+            display: flex; justify-content: space-between; width: 100%;
+            padding: 0 40px; box-sizing: border-box; z-index: 2; 
         }
 
-        /* The circles */
         .number-circle {
-            width: 70px; 
-            height: 70px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background-color: #eee;
-            border: 2px solid #000;
-            border-radius: 50%; 
-            box-sizing: border-box;
-            font-size: 36px; 
-            z-index: 2;
+            width: 60px; height: 60px; /* Smaller circles */
+            display: flex; align-items: center; justify-content: center;
+            background-color: #eee; border: 2px solid #000;
+            border-radius: 50%; box-sizing: border-box; font-size: 32px; z-index: 2;
         }
 
-
-        /* Input and Check Button Alignment */
+        /* Input Controls */
         #input-controls {
             display: flex; 
             justify-content: center; 
             align-items: center; 
-            gap: 10px;
+            gap: 5px;
         }
 
-        /* Answer input field */
         #answer-input {
             font-family: 'VT323', monospace;
             font-size: 48px;
-            width: 120px;
+            width: 100px;
             text-align: center;
             border: 2px solid #000;
-            padding: 5px;
+            padding: 2px;
             -moz-appearance: textfield;
         }
-        #answer-input:read-only {
-            background-color: #f8f8f8;
-            color: #333;
-        }
+        #answer-input:read-only { background-color: #eee; color: #000; }
         #answer-input::-webkit-outer-spin-button,
-        #answer-input::-webkit-inner-spin-button {
-            -webkit-appearance: none;
-            margin: 0;
+        #answer-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+        #check-answer-btn {
+            font-size: 24px;
+            padding: 10px 15px;
+            height: 56px; /* Match input height roughly */
         }
 
-        /* Feedback message (Correct/Incorrect) */
         #feedback {
-            font-size: 24px;
-            height: 30px; 
-            line-height: 30px;
-            margin-top: 15px;
+            font-size: 20px;
+            height: 24px; 
+            margin-top: 5px;
             font-weight: bold;
         }
+        .feedback-correct { color: #006400; }
+        .feedback-incorrect { color: #8b0000; }
 
-        .feedback-correct {
-            color: #000; 
-        }
-        .feedback-incorrect {
-            color: #000; 
-        }
-
-        /* Info bar for score and timer */
-        .info-bar {
-            display: flex;
-            justify-content: space-between;
-            font-size: 20px;
-            padding: 10px 16px;
-            border-top: 2px solid #000;
-        }
-
-        /* Button styling */
-        .button-bar {
-            padding: 0 16px 16px;
-            display: flex;
-            justify-content: flex-end; 
-            gap: 10px; /* Space between buttons */
-        }
-        .btn {
-            font-family: 'VT323', monospace;
-            font-size: 20px;
-            background-color: #fff;
-            border: 2px solid #000;
-            padding: 5px 15px;
-            box-shadow: 3px 3px 0px #000;
-            cursor: pointer;
-            user-select: none;
-        }
-        .btn:active {
-            box-shadow: 1px 1px 0px #000;
-            transform: translate(2px, 2px);
-        }
+        /* --- Footer Areas (Weights / Keypad) --- */
         
-        .btn-active-mode {
-            background-color: #000;
-            color: #fff;
-            box-shadow: inset 2px 2px 0px #555;
-        }
-
         /* Weights display table */
         .weights-container {
-            font-size: 18px;
-            padding: 10px 16px 16px;
-            border-top: 2px solid #000;
-        }
-        .weights-container h3 {
-            margin: 0 0 10px;
-            text-align: left;
-            font-size: 22px;
-        }
-        #weights-table {
-            width: 100%;
-            border-collapse: collapse;
-            text-align: center;
-        }
-        #weights-table th,
-        #weights-table td {
-            border: 1px solid #000;
-            padding: 4px;
-            font-size: 18px;
-        }
-        #weights-table th {
-            background-color: #eee;
-        }
-        /* Highlight low weights */
-        .weight-low {
-            background-color: #c0ffc0; 
-        }
-
-        /* --- Log Table Specifics --- */
-        #log-list-container {
-            max-height: 200px;
-            overflow-y: auto;
-            border: 1px solid #000;
-            margin-bottom: 20px;
+            font-size: 16px;
             padding: 5px;
-            background: #fff;
+            border-top: 2px solid #000;
+            flex-shrink: 0;
+            max-height: 150px;
+            overflow-y: auto;
         }
-        #log-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 18px;
-        }
-        #log-table th, #log-table td {
-            text-align: left;
-            padding: 4px;
-            border-bottom: 1px solid #ccc;
-        }
-        #log-table th {
-            border-bottom: 2px solid #000;
-        }
-        
-        /* --- Mobile Keypad Styling --- */
+        .weights-container h3 { margin: 0 0 5px; text-align: left; font-size: 18px; }
+        #weights-table { width: 100%; border-collapse: collapse; text-align: center; }
+        #weights-table th, #weights-table td { border: 1px solid #000; padding: 2px; }
+        #weights-table th { background-color: #eee; }
+        .weight-low { background-color: #c0ffc0; }
+
+        /* Mobile Keypad */
         .keypad-container {
-            display: none; /* Hidden by default */
-            padding: 10px 16px 16px;
+            display: none; 
+            padding: 5px;
             border-top: 2px solid #000;
             background-color: #e0e0e0;
+            flex-shrink: 0;
         }
-        
         .keypad-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            max-width: 300px;
+            gap: 6px;
+            max-width: 400px;
             margin: 0 auto;
         }
-        
         .keypad-btn {
             font-family: 'VT323', monospace;
-            font-size: 32px;
+            font-size: 28px;
             background-color: #fff;
             border: 2px solid #000;
-            padding: 15px 0;
-            box-shadow: 4px 4px 0px #000;
+            padding: 10px 0;
+            box-shadow: 2px 2px 0px #000;
             cursor: pointer;
             text-align: center;
             user-select: none;
         }
         .keypad-btn:active {
             box-shadow: 1px 1px 0px #000;
-            transform: translate(3px, 3px);
+            transform: translate(2px, 2px);
             background-color: #ccc;
         }
-        
-        .keypad-enter {
-            font-weight: bold;
-            background-color: #ddd;
-        }
+        .keypad-enter { font-weight: bold; background-color: #ddd; }
+
+        /* Log Table styling */
+        #log-list-container { max-height: 200px; overflow-y: auto; border: 1px solid #000; margin-bottom: 20px; padding: 5px; background: #fff; }
+        #log-table { width: 100%; border-collapse: collapse; font-size: 18px; }
+        #log-table th, #log-table td { text-align: left; padding: 4px; border-bottom: 1px solid #ccc; }
+        #log-table th { border-bottom: 2px solid #000; }
 
     </style>
 </head>
@@ -420,14 +364,12 @@
                         <thead>
                             <tr>
                                 <th>Date</th>
-                                <th>Mode</th> <!-- New Column -->
+                                <th>Mode</th>
                                 <th>Score</th>
                                 <th>Time</th>
                             </tr>
                         </thead>
-                        <tbody id="log-table-body">
-                            <!-- Logs injected here -->
-                        </tbody>
+                        <tbody id="log-table-body"></tbody>
                     </table>
                 </div>
                 <div style="margin-bottom: 15px; font-size: 18px;">
@@ -452,9 +394,7 @@
                 <div class="title-bar-stripes"></div>
             </div>
             <div class="content">
-                <div id="confirmation-message" style="margin-bottom: 20px;">
-                    <!-- Message injected here -->
-                </div>
+                <div id="confirmation-message" style="margin-bottom: 20px;"></div>
                 <div class="button-bar" style="justify-content: center; gap: 20px; padding: 0;">
                     <button class="btn" id="btn-confirm-yes">Yes</button>
                     <button class="btn" id="btn-confirm-cancel">Cancel</button>
@@ -463,83 +403,95 @@
         </div>
     </div>
 
-    <!-- Main application window --><div class="window">
-        <!-- Title bar --><div class="title-bar">
-            <!-- Close box now acts as a skip/cancel button (Left) --><div class="close-box" id="close-box-btn">&times;</div>
+    <!-- Main application window -->
+    <div class="window">
+        <!-- Title bar -->
+        <div class="title-bar">
+            <div class="close-box" id="close-box-btn">&times;</div>
             <div class="title-bar-stripes"></div>
             <div>System 6 Math Facts</div>
             <div class="title-bar-stripes"></div>
-            <!-- Pause/Play button (Right) --><div class="pause-box" id="pause-box-btn">||</div>
+            <div class="pause-box" id="pause-box-btn">||</div>
         </div>
 
-        <!-- Mode Selector --><div class="mode-selector">
-            <label for="game-mode">Mode:</label>
-            <select id="game-mode">
-                <option value="fastFacts">Fast Facts (Mixed)</option>
-                <option value="factFamilyAddSub">Fact Family (+ / -)</option>
-                <option value="factFamilyMulDiv">Fact Family (× / ÷)</option>
-            </select>
-        </div>
-
-        <!-- Main content area --><div class="content">
-            <!-- The math problem (Fast Facts Mode) --><div id="problem-container">
-                7 &times; 6
+        <!-- NEW Dashboard Section at the top -->
+        <div class="dashboard">
+            <!-- Stats Row -->
+            <div class="info-bar">
+                <div id="score">Score: 0</div>
+                <div id="total-time">Time: 00:00</div>
             </div>
+
+            <!-- Controls Row -->
+            <div class="button-bar">
+                <button class="btn" id="keypad-toggle-btn">Keypad</button>
+                <button class="btn" id="log-btn">Log</button>
+                <button class="btn" id="reset-btn">Reset</button>
+            </div>
+
+            <!-- Mode Selector Row -->
+            <div class="mode-selector">
+                <label for="game-mode">Mode:</label>
+                <select id="game-mode">
+                    <option value="fastFacts">Fast Facts (Mixed)</option>
+                    <option value="factFamilyAddSub">Fact Family (+ / -)</option>
+                    <option value="factFamilyMulDiv">Fact Family (× / ÷)</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Main content area -->
+        <div class="content">
             
-            <!-- Fact Family Triangle Display --><div id="triangle-container" style="display: none;">
+            <!-- Active Area: Contains Problem and Input -->
+            <div id="active-area" class="fast-facts">
                 
-                <!-- Large Operation Symbol (Centered) -->
-                <div id="triangle-operator-symbol"></div> 
-
-                <!-- Numbers -->
-                <div class="triangle-row" id="triangle-top-wrapper">
-                    <div class="number-circle" id="triangle-top"></div>
+                <!-- 1. The Problem (Text or Triangle) -->
+                <div id="problem-container">
+                    7 &times; 6 =
                 </div>
-                <div class="triangle-row" id="triangle-bottom-row">
-                    <div class="number-circle" id="triangle-bottom-left"></div>
-                    <div class="number-circle" id="triangle-bottom-right"></div>
-                </div>
-            </div>
-
-            <!-- Input and new Check button container --><div id="input-controls">
-                <!-- The answer input --><input type="number" id="answer-input" inputmode="numeric" pattern="[0-9]*">
                 
-                <!-- Manual Enter Button for mobile use --><button class="btn" id="check-answer-btn">Check</button>
+                <div id="triangle-container" style="display: none;">
+                    <div id="triangle-operator-symbol"></div> 
+                    <div class="triangle-row" id="triangle-top-wrapper">
+                        <div class="number-circle" id="triangle-top"></div>
+                    </div>
+                    <div class="triangle-row" id="triangle-bottom-row">
+                        <div class="number-circle" id="triangle-bottom-left"></div>
+                        <div class="number-circle" id="triangle-bottom-right"></div>
+                    </div>
+                </div>
+
+                <!-- 2. The Input Box -->
+                <div id="input-controls">
+                    <input type="number" id="answer-input" inputmode="numeric" pattern="[0-9]*">
+                    <!-- Manual Enter Button (Only shown if Keypad is OFF) -->
+                    <button class="btn" id="check-answer-btn">Check</button>
+                </div>
+
             </div>
 
-            <!-- Feedback message --><div id="feedback">
-                Enter your answer and press Enter.
+            <!-- Feedback message -->
+            <div id="feedback">
+                Enter your answer.
             </div>
         </div>
 
-        <!-- Info bar (Score and Timer) --><div class="info-bar">
-            <div id="score">Score: 0</div>
-            <div id="total-time">Total Time: 00:00</div>
-            <div id="timer">Time: 0.0s</div>
-        </div>
-
-        <!-- Button Bar --><div class="button-bar">
-            <button class="btn" id="keypad-toggle-btn">Keypad</button> <!-- NEW -->
-            <button class="btn" id="log-btn">Log Score</button>
-            <button class="btn" id="reset-btn">Reset</button>
-        </div>
-
-        <!-- Weights Display --><div class="weights-container" id="weights-container">
+        <!-- Footer Area: Weights OR Keypad -->
+        <div class="weights-container" id="weights-container">
             <h3>Number Weights</h3>
             <table id="weights-table">
-                <!-- Header will be built by JS --><thead>
+                <thead>
                     <tr id="weights-header-row">
                         <th>Num</th>
                         <th>+ / -</th>
                         <th>&times; / &divide;</th>
                     </tr>
                 </thead>
-                <!-- Body will be built by JS --><tbody id="weights-body">
-                    <!-- Rows will be added by JS --></tbody>
+                <tbody id="weights-body"></tbody>
             </table>
         </div>
         
-        <!-- Mobile Keypad Container (Hidden by default) -->
         <div class="keypad-container" id="keypad-container">
             <div class="keypad-grid">
                 <div class="keypad-btn" onclick="keypadPress(7)">7</div>
@@ -590,9 +542,8 @@
         let isPaused = false; 
         let currentMode = 'fastFacts'; 
         let practiceLogs = []; 
-        let isMobileKeypadActive = false; // NEW
+        let isMobileKeypadActive = false; 
         
-        // Variables for custom confirmation logic
         let pendingConfirmationAction = null;
 
         let minNumActive = INITIAL_MIN_NUM; 
@@ -600,34 +551,31 @@
         let maxNumMulDiv = INITIAL_MAX_NUM;
 
         // --- DOM Elements ---
+        const activeArea = document.getElementById('active-area'); // New Container
         const problemContainer = document.getElementById('problem-container');
         const triangleContainer = document.getElementById('triangle-container'); 
         const answerInput = document.getElementById('answer-input');
         const feedback = document.getElementById('feedback');
         const scoreDisplay = document.getElementById('score');
-        const timerDisplay = document.getElementById('timer');
+        const timerDisplay = document.getElementById('total-time'); // Changed ref
         const resetBtn = document.getElementById('reset-btn'); 
         const logBtn = document.getElementById('log-btn'); 
-        const keypadToggleBtn = document.getElementById('keypad-toggle-btn'); // NEW
+        const keypadToggleBtn = document.getElementById('keypad-toggle-btn'); 
         const weightsTableBody = document.getElementById('weights-body');
-        const totalTimeDisplay = document.getElementById('total-time'); 
         const modeSelector = document.getElementById('game-mode'); 
         
         const checkAnswerBtn = document.getElementById('check-answer-btn');
         const closeBoxBtn = document.getElementById('close-box-btn');
         const pauseBoxBtn = document.getElementById('pause-box-btn'); 
         
-        // Containers for toggle
         const weightsContainer = document.getElementById('weights-container');
         const keypadContainer = document.getElementById('keypad-container');
 
-        // --- Triangle specific elements ---
         const triangleTop = document.getElementById('triangle-top');
         const triangleBottomLeft = document.getElementById('triangle-bottom-left');
         const triangleBottomRight = document.getElementById('triangle-bottom-right');
         const triangleOperatorSymbol = document.getElementById('triangle-operator-symbol');
 
-        // --- Modal Elements ---
         const historyModal = document.getElementById('history-modal');
         const modalCloseBox = document.getElementById('modal-close-box');
         const btnContinue = document.getElementById('btn-continue');
@@ -635,7 +583,6 @@
         const btnResetAll = document.getElementById('btn-reset-all');
         const logTableBody = document.getElementById('log-table-body');
         
-        // --- Confirmation Modal Elements ---
         const confirmationModal = document.getElementById('confirmation-modal');
         const confirmationMessage = document.getElementById('confirmation-message');
         const btnConfirmYes = document.getElementById('btn-confirm-yes');
@@ -645,9 +592,6 @@
 
         // === Game Logic ===
 
-        /**
-         * Loads game state from localStorage or initializes a new game.
-         */
         function loadGameState() {
             const savedState = localStorage.getItem(LOCAL_STORAGE_KEY);
             if (savedState) {
@@ -662,7 +606,7 @@
                     totalTimeSeconds = state.totalTimeSeconds || 0; 
                     currentMode = state.currentMode || 'fastFacts'; 
                     practiceLogs = state.practiceLogs || []; 
-                    isMobileKeypadActive = state.isMobileKeypadActive || false; // Load preference
+                    isMobileKeypadActive = state.isMobileKeypadActive || false; 
                     
                     ensureWeightsExist();
                 } catch (e) {
@@ -674,10 +618,7 @@
             }
             
             modeSelector.value = currentMode; 
-            
-            // Apply loaded keypad preference
             applyKeypadMode();
-            
             updateScoreDisplay();
             updateTotalTimeDisplay(); 
             updateWeightTable();
@@ -685,9 +626,6 @@
             nextProblem();
         }
         
-        /**
-         * Sets up a brand new game state.
-         */
         function initializeNewGame() {
             currentScore = 0;
             minNumActive = INITIAL_MIN_NUM;
@@ -703,10 +641,6 @@
             ensureWeightsExist();
         }
         
-        /**
-         * Ensures that all numbers in the current active range (min to max)
-         * have a weight entry.
-         */
         function ensureWeightsExist() {
             for (let i = minNumActive; i <= maxNumAddSub; i++) {
                 if (!operandWeights.addSub[i]) {
@@ -720,9 +654,6 @@
             }
         }
 
-        /**
-         * Saves the current game state to localStorage.
-         */
         function saveGameState() {
             const state = {
                 currentScore,
@@ -734,12 +665,10 @@
                 totalTimeSeconds,
                 currentMode,
                 practiceLogs,
-                isMobileKeypadActive // Save preference
+                isMobileKeypadActive 
             };
             localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(state));
         }
-        
-        // --- Mobile Keypad Logic ---
         
         function toggleKeypad() {
             isMobileKeypadActive = !isMobileKeypadActive;
@@ -751,12 +680,9 @@
             if (isMobileKeypadActive) {
                 weightsContainer.style.display = 'none';
                 keypadContainer.style.display = 'block';
-                keypadToggleBtn.classList.add('btn-active-mode'); // Highlight button
+                keypadToggleBtn.classList.add('btn-active-mode'); 
                 
-                // Set input to readonly to prevent native keyboard
-                answerInput.readOnly = true;
-                
-                // Hide the redundant "Check" button if we have the keypad OK button
+                answerInput.readOnly = true; // Use readOnly, not disabled, so it can still show value
                 checkAnswerBtn.style.display = 'none';
                 
             } else {
@@ -764,18 +690,13 @@
                 keypadContainer.style.display = 'none';
                 keypadToggleBtn.classList.remove('btn-active-mode');
                 
-                // Allow native input
                 answerInput.readOnly = false;
                 checkAnswerBtn.style.display = 'inline-block';
             }
         }
         
-        // Global functions for inline HTML event handlers
         window.keypadPress = function(num) {
-            // Prevent input if disabled (during flash/correction)
             if (answerInput.disabled) return;
-            
-            // Limit input length
             if (answerInput.value.length < 4) {
                 answerInput.value += num;
             }
@@ -786,11 +707,6 @@
             answerInput.value = answerInput.value.slice(0, -1);
         };
 
-        // --- Logging and Reset Logic ---
-
-        /**
-         * Logs the current score and time, then shows the modal.
-         */
         function logScore() {
             if (!isPaused) togglePause();
 
@@ -800,7 +716,7 @@
                 time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 score: Math.floor(currentScore),
                 duration: formatTime(totalTimeSeconds),
-                mode: getModeDisplayName(currentMode) // Add Mode to log
+                mode: getModeDisplayName(currentMode) 
             };
 
             practiceLogs.unshift(logEntry);
@@ -810,11 +726,10 @@
             historyModal.style.display = 'flex'; 
         }
         
-        // Helper to get friendly name for mode
         function getModeDisplayName(mode) {
             if (mode === 'factFamilyAddSub') return 'Family (+/-)';
             if (mode === 'factFamilyMulDiv') return 'Family (×/÷)';
-            return 'Fast Facts'; // Default
+            return 'Fast Facts'; 
         }
 
         function renderLogs() {
@@ -831,8 +746,6 @@
             });
         }
 
-        // --- Custom Confirmation Logic ---
-
         function showConfirmation(message, onConfirmAction) {
             confirmationMessage.textContent = message;
             pendingConfirmationAction = onConfirmAction;
@@ -844,7 +757,6 @@
             pendingConfirmationAction = null;
         }
 
-        // Confirmation Event Listeners
         btnConfirmYes.addEventListener('click', () => {
             if (pendingConfirmationAction) {
                 pendingConfirmationAction();
@@ -855,18 +767,12 @@
         btnConfirmCancel.addEventListener('click', hideConfirmation);
         confirmCloseBox.addEventListener('click', hideConfirmation);
 
-
-        /**
-         * ACTIONS FROM LOG WINDOW
-         */
-
         function actionContinue() {
             historyModal.style.display = 'none';
             if (isPaused) togglePause(); 
         }
 
         function actionNewSession() {
-            // Reset session stats only
             stopTimerDisplay();
             stopTotalTimeInterval();
 
@@ -898,7 +804,7 @@
                 saveGameState();     
                 
                 modeSelector.value = currentMode; 
-                applyKeypadMode(); // Apply default (off) or reset
+                applyKeypadMode(); 
                 updateScoreDisplay();
                 updateTotalTimeDisplay(); 
                 updateWeightTable();
@@ -915,26 +821,22 @@
             });
         }
 
-        /**
-         * MAIN SCREEN RESET BUTTON
-         */
         function resetGame() {
             stopTimerDisplay(); 
             stopTotalTimeInterval(); 
             
             showConfirmation("Are you sure? This will reset your level progress, score, and time.", () => {
                 const existingLogs = [...practiceLogs]; 
-                // Keep keypad pref
                 const keypadPref = isMobileKeypadActive;
                 
                 initializeNewGame(); 
                 
                 practiceLogs = existingLogs; 
-                isMobileKeypadActive = keypadPref; // Restore pref
+                isMobileKeypadActive = keypadPref; 
                 
                 saveGameState();
                 modeSelector.value = currentMode;
-                applyKeypadMode(); // Re-apply UI
+                applyKeypadMode(); 
                 updateScoreDisplay();
                 updateTotalTimeDisplay();
                 updateWeightTable();
@@ -951,12 +853,6 @@
             }
         }
         
-        // --- End Logging Logic ---
-
-
-        /**
-         * Creates a weighted list from a weight object, filtering by the max allowed number.
-         */
         function createWeightedList(weights, maxNum) {
             const list = [];
             for (let i = minNumActive; i <= maxNum; i++) {
@@ -968,28 +864,21 @@
             return list;
         }
 
-        /**
-         * Selects a random item from a list.
-         */
         function selectRandomFromList(list) {
             if (list.length === 0) return null;
             const index = Math.floor(Math.random() * list.length);
             return list[index];
         }
 
-        /**
-         * Updates the problem display based on the current mode.
-         */
         function updateProblemDisplay() {
-            // Clear any correction flash
             problemContainer.classList.remove('correction-display'); 
             problemContainer.textContent = ''; 
-
-            // Clear symbol
             triangleOperatorSymbol.textContent = ''; 
 
-            // Determine if we are in a fact family mode
             const isFactFamily = currentMode.startsWith('factFamily');
+
+            // Reset layout classes
+            activeArea.className = isFactFamily ? 'triangle' : 'fast-facts';
 
             if (isFactFamily && currentProblem.triangle) {
                 problemContainer.style.display = 'none';
@@ -1001,21 +890,16 @@
                 triangleBottomLeft.textContent = missingIndex === 0 ? '?' : numA;
                 triangleBottomRight.textContent = missingIndex === 1 ? '?' : numB;
 
-                // Set the large symbol
                 triangleOperatorSymbol.textContent = isAddSub ? '+/-' : '×/÷';
 
-            } else { // fastFacts
+            } else { 
                 problemContainer.style.display = 'block';
                 triangleContainer.style.display = 'none';
-                
-                // Restore the original problem text
-                problemContainer.textContent = `${currentProblem.num1} ${currentProblem.op} ${currentProblem.num2}`;
+                // Show question with = to prompt for answer
+                problemContainer.textContent = `${currentProblem.num1} ${currentProblem.op} ${currentProblem.num2} =`;
             }
         }
 
-        /**
-         * Generates the next math problem.
-         */
         function nextProblem() {
             if (isPaused) return;
 
@@ -1026,22 +910,18 @@
             while (!validProblemFound && attempts < 15) {
                 attempts++;
                 
-                // Determine operation type based on mode
                 let isAddSubMode = false;
                 let isMulDivMode = false;
                 
                 if (currentMode === 'factFamilyAddSub') isAddSubMode = true;
                 else if (currentMode === 'factFamilyMulDiv') isMulDivMode = true;
                 else {
-                    // fastFacts (Mixed)
-                    // Randomly pick AddSub or MulDiv logic for the problem
                     if (Math.random() < 0.5) isAddSubMode = true;
                     else isMulDivMode = true;
                 }
 
                 if (currentMode.startsWith('factFamily')) {
-                    // --- Fact Family Generation ---
-                    const isAddSub = isAddSubMode; // Enforced by mode
+                    const isAddSub = isAddSubMode; 
                     const maxNum = isAddSub ? maxNumAddSub : maxNumMulDiv;
                     const weightPool = createWeightedList(isAddSub ? operandWeights.addSub : operandWeights.mulDiv, maxNum);
                     
@@ -1051,7 +931,6 @@
                     let numB = parseInt(selectRandomFromList(weightPool));
                     let numC;
 
-                    // Ensure numA and numB are always the smallest numbers (parts)
                     if (numA > numB) [numA, numB] = [numB, numA];
 
                     if (isAddSub) {
@@ -1062,7 +941,7 @@
                         if (numC > 144) continue; 
                     }
 
-                    const missingIndex = Math.floor(Math.random() * 3); // 0=A, 1=B, 2=C (The answer index)
+                    const missingIndex = Math.floor(Math.random() * 3); 
                     
                     let baseOp, numMain, numSecondary, answerVal;
 
@@ -1087,8 +966,6 @@
                 } 
                 
                 else {
-                    // --- Fast Facts Generation (Mixed Operations) ---
-                    // We need to decide specific op based on general type selected above
                     const ops = isAddSubMode ? ['+', '-'] : ['x', '÷'];
                     op = ops[Math.floor(Math.random() * ops.length)];
                     
@@ -1139,7 +1016,7 @@
             
             answerInput.value = '';
             
-            // Re-focus logic: only focus if NOT using on-screen keypad to avoid keyboard flash
+            // Only focus if keypad is NOT active to avoid jumping on mobile
             if (!isMobileKeypadActive) {
                 answerInput.focus();
             }
@@ -1148,9 +1025,6 @@
             startTime = Date.now();
         }
 
-        /**
-         * Checks the user's answer.
-         */
         function checkAnswer() {
             if (isPaused) return;
             
@@ -1182,7 +1056,7 @@
                     feedback.textContent = `Correct! (${answerTime.toFixed(1)}s)`;
                     feedback.className = 'feedback-correct';
                     scoreChange = Math.max(2, baseScore); 
-                    adjustWeights(currentProblem, false); // Decrease weight
+                    adjustWeights(currentProblem, false); 
                 } else {
                     feedback.textContent = `Correct, but slow. (${answerTime.toFixed(1)}s)`;
                     feedback.className = 'feedback-correct';
@@ -1192,7 +1066,7 @@
                 feedback.textContent = `Incorrect. The answer was ${currentProblem.answer}.`;
                 feedback.className = 'feedback-incorrect';
                 scoreChange = -Math.max(1, baseScore / 4); 
-                adjustWeights(currentProblem, true); // Increase weight
+                adjustWeights(currentProblem, true); 
             }
 
             currentScore = Math.max(0, currentScore + scoreChange);
@@ -1211,11 +1085,7 @@
             }
         }
         
-        /**
-         * Displays the correct answer as a black box with white text.
-         */
         function displayCorrection(problem) {
-            
             let correctEquation;
             if (currentMode.startsWith('factFamily') && problem.triangle) {
                 const { numA, numB, numC } = problem.triangle;
@@ -1225,7 +1095,9 @@
             }
             
             answerInput.disabled = true;
-            answerInput.blur();
+            // Note: Don't blur here if keypad active, it might cause weird jumps.
+            // But we do want to disable interaction.
+            if (!isMobileKeypadActive) answerInput.blur();
 
             const flashTarget = document.getElementById('problem-container');
             
@@ -1235,18 +1107,13 @@
             flashTarget.classList.add('correction-display');
             flashTarget.textContent = correctEquation;
 
-
             setTimeout(() => {
                 flashTarget.classList.remove('correction-display');
                 answerInput.disabled = false;
-                
                 setTimeout(nextProblem, NEXT_PROBLEM_DELAY_MS);
             }, CORRECTION_DISPLAY_DURATION_MS);
         }
 
-        /**
-         * Adjusts the weights for the problem and its operands.
-         */
         function adjustWeights(problem, increase) {
             const change = increase ? WEIGHT_CHANGE_AMOUNT : -WEIGHT_CHANGE_AMOUNT;
             let weightsToAdjust = [];
@@ -1259,12 +1126,10 @@
                 weightPool = isAddSub ? operandWeights.addSub : operandWeights.mulDiv;
                 weightsToAdjust = [numA, numB];
             } else {
-                // Fast Facts
                 const { num1, num2, op, answer } = problem;
                 opType = (op === '+' || op === '-') ? 'addSub' : 'mulDiv';
                 weightPool = opType === 'addSub' ? operandWeights.addSub : operandWeights.mulDiv;
                 weightsToAdjust = [num1, num2];
-                
                 if (op === '÷') {
                     weightsToAdjust.push(answer);
                 }
@@ -1279,42 +1144,36 @@
             });
         }
         
-        /**
-         * Checks if the max number for an operation type should be increased (leveled up).
-         */
         function checkMaxNumProgression(operationType) {
             const isAddSub = (operationType === 'addSub');
             let currentMax = isAddSub ? maxNumAddSub : maxNumMulDiv;
             const weightPool = isAddSub ? operandWeights.addSub : operandWeights.mulDiv;
             
             if (currentMax < MASTER_MAX_NUM && weightPool[currentMax] === MIN_WEIGHT) {
-                
                 currentMax++;
-                
                 if (isAddSub) {
                     maxNumAddSub = currentMax;
                 } else {
                     maxNumMulDiv = currentMax;
                 }
-                
                 ensureWeightsExist();
-                
                 feedback.textContent = `Level Up! Unlocked facts for ${currentMax} in ${operationType === 'addSub' ? 'Add/Sub' : 'Mult/Div'}!`;
                 feedback.className = 'feedback-correct';
-                
                 return true;
             }
             return false;
         }
 
-        // === UI Functions (Timer and Display) ===
-
         function startTimerDisplay() {
             stopTimerDisplay(); 
-            timerInterval = setInterval(() => {
-                const elapsed = (Date.now() - startTime) / 1000.0;
-                timerDisplay.textContent = `Time: ${elapsed.toFixed(1)}s`;
-            }, 100);
+            // We use Date.now() for accurate elapsed time, but we also want a visual timer
+            // Since we aren't showing per-problem timer visually in the new layout, this interval basically just tracks state?
+            // Actually the prompt said "Time: 0.0s" in info bar is Total Time now. 
+            // We can remove the per-problem visual update to save resources if it's not shown.
+            // But we NEED the interval to stop so we can restart it. 
+            // Let's just keep the interval variable management but not update DOM if element is gone.
+            // Wait, the new layout has Total Time: 00:00. It doesn't show the 3.0s countdown.
+            // So we don't need to update DOM here.
         }
 
         function stopTimerDisplay() {
@@ -1338,7 +1197,7 @@
                 clearInterval(totalTimeInterval);
                 totalTimeInterval = null;
             }
-            saveGameState(); // Save state when stopping total time (e.g., on pause/exit)
+            saveGameState(); 
         }
         
         function formatTime(totalSec) {
@@ -1350,7 +1209,8 @@
         }
 
         function updateTotalTimeDisplay() {
-            totalTimeDisplay.textContent = `Total Time: ${formatTime(totalTimeSeconds)}`;
+            // Note: In new layout, timerDisplay variable points to #total-time
+            timerDisplay.textContent = `Time: ${formatTime(totalTimeSeconds)}`;
         }
 
         function updateScoreDisplay() {
@@ -1389,8 +1249,6 @@
             }
         }
 
-        // === Event Listeners ===
-        
         answerInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 checkAnswer();
@@ -1402,17 +1260,13 @@
         pauseBoxBtn.addEventListener('click', togglePause);
         resetBtn.addEventListener('click', resetGame);
         logBtn.addEventListener('click', logScore); 
-        
-        // NEW: Keypad Toggle Listener
         keypadToggleBtn.addEventListener('click', toggleKeypad);
 
-        // Modal Listeners
         btnContinue.addEventListener('click', actionContinue);
         btnNewSession.addEventListener('click', actionNewSession);
         btnResetAll.addEventListener('click', actionResetAll);
         modalCloseBox.addEventListener('click', actionContinue);
         
-        // Confirmation Modal Listeners
         btnConfirmYes.addEventListener('click', () => {
             if (pendingConfirmationAction) pendingConfirmationAction();
             hideConfirmation();
@@ -1420,34 +1274,24 @@
         btnConfirmCancel.addEventListener('click', hideConfirmation);
         confirmCloseBox.addEventListener('click', hideConfirmation);
         
-        // Mode change listener
         modeSelector.addEventListener('change', (e) => {
-            // When mode changes, automatically start a new session
             currentMode = e.target.value;
-            
-            // Reset Session stats
             stopTimerDisplay();
             stopTotalTimeInterval();
             currentScore = 0;
             totalTimeSeconds = 0;
-            
             saveGameState(); 
-            
             updateScoreDisplay();
             updateTotalTimeDisplay();
             feedback.textContent = "Mode Changed: New Session Started!";
-            
             if (isPaused) {
-                // If paused, unpause to start the new mode immediately
                 isPaused = false;
                 pauseBoxBtn.textContent = '||';
             }
-            
             startTotalTimeInterval();
             nextProblem();    
         });
 
-        // Toggle pause function 
         function togglePause() {
             if (isPaused) {
                 isPaused = false;
@@ -1461,37 +1305,28 @@
                 isPaused = true;
                 stopTimerDisplay(); 
                 stopTotalTimeInterval(); 
-                
-                // Ensure fast facts container is used for the pause message
                 document.getElementById('problem-container').style.display = 'block'; 
                 document.getElementById('triangle-container').style.display = 'none';
                 problemContainer.textContent = '- PAUSED -';
                 problemContainer.classList.remove('correction-display');
-                
                 answerInput.value = '';
-                answerInput.blur();
-                
+                if(!isMobileKeypadActive) answerInput.blur();
                 pauseBoxBtn.textContent = '▶';
                 feedback.textContent = "Game Paused";
                 feedback.className = '';
                 timerDisplay.textContent = "Time: PAUSED";
-                totalTimeDisplay.textContent = 'Total Time: PAUSED';
             }
         }
         
         function cancelProblem() {
             if (isPaused) return;
-
             stopTimerDisplay();
             answerInput.value = '';
             feedback.textContent = "Problem skipped. Loading next one...";
             feedback.className = '';
-            
             nextProblem();
         }
 
-
-        // --- Start the app ---
         window.addEventListener('beforeunload', saveGameState); 
         loadGameState();
 
