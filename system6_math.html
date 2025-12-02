@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"> <!-- Prevent zoom on tap -->
     <title>System 6 Math Facts - Fact Family</title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -20,7 +20,7 @@
             align-items: center;
             min-height: 100vh;
             margin: 0;
-            padding: 20px;
+            padding: 10px; /* Reduced padding for mobile */
             box-sizing: border-box;
             /* Use a tiling 1-bit pattern for the background, classic Mac style */
             background-image: linear-gradient(45deg, #ccc 25%, transparent 25%), 
@@ -187,10 +187,10 @@
         /* Operation Symbol Styling - Centered in Triangle */
         #triangle-operator-symbol {
             position: absolute;
-            top: 60%; /* Adjusted down to prevent overlap */
+            top: 60%; 
             left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 50px; /* Slightly smaller */
+            font-size: 50px; 
             font-weight: bold;
             opacity: 0.3; 
             color: #000;
@@ -247,6 +247,10 @@
             padding: 5px;
             -moz-appearance: textfield;
         }
+        #answer-input:read-only {
+            background-color: #f8f8f8;
+            color: #333;
+        }
         #answer-input::-webkit-outer-spin-button,
         #answer-input::-webkit-inner-spin-button {
             -webkit-appearance: none;
@@ -298,6 +302,12 @@
         .btn:active {
             box-shadow: 1px 1px 0px #000;
             transform: translate(2px, 2px);
+        }
+        
+        .btn-active-mode {
+            background-color: #000;
+            color: #fff;
+            box-shadow: inset 2px 2px 0px #555;
         }
 
         /* Weights display table */
@@ -351,6 +361,44 @@
         }
         #log-table th {
             border-bottom: 2px solid #000;
+        }
+        
+        /* --- Mobile Keypad Styling --- */
+        .keypad-container {
+            display: none; /* Hidden by default */
+            padding: 10px 16px 16px;
+            border-top: 2px solid #000;
+            background-color: #e0e0e0;
+        }
+        
+        .keypad-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            max-width: 300px;
+            margin: 0 auto;
+        }
+        
+        .keypad-btn {
+            font-family: 'VT323', monospace;
+            font-size: 32px;
+            background-color: #fff;
+            border: 2px solid #000;
+            padding: 15px 0;
+            box-shadow: 4px 4px 0px #000;
+            cursor: pointer;
+            text-align: center;
+            user-select: none;
+        }
+        .keypad-btn:active {
+            box-shadow: 1px 1px 0px #000;
+            transform: translate(3px, 3px);
+            background-color: #ccc;
+        }
+        
+        .keypad-enter {
+            font-weight: bold;
+            background-color: #ddd;
         }
 
     </style>
@@ -471,11 +519,12 @@
         </div>
 
         <!-- Button Bar --><div class="button-bar">
+            <button class="btn" id="keypad-toggle-btn">Keypad</button> <!-- NEW -->
             <button class="btn" id="log-btn">Log Score</button>
             <button class="btn" id="reset-btn">Reset</button>
         </div>
 
-        <!-- Weights Display --><div class="weights-container">
+        <!-- Weights Display --><div class="weights-container" id="weights-container">
             <h3>Number Weights</h3>
             <table id="weights-table">
                 <!-- Header will be built by JS --><thead>
@@ -488,6 +537,27 @@
                 <!-- Body will be built by JS --><tbody id="weights-body">
                     <!-- Rows will be added by JS --></tbody>
             </table>
+        </div>
+        
+        <!-- Mobile Keypad Container (Hidden by default) -->
+        <div class="keypad-container" id="keypad-container">
+            <div class="keypad-grid">
+                <div class="keypad-btn" onclick="keypadPress(7)">7</div>
+                <div class="keypad-btn" onclick="keypadPress(8)">8</div>
+                <div class="keypad-btn" onclick="keypadPress(9)">9</div>
+                
+                <div class="keypad-btn" onclick="keypadPress(4)">4</div>
+                <div class="keypad-btn" onclick="keypadPress(5)">5</div>
+                <div class="keypad-btn" onclick="keypadPress(6)">6</div>
+                
+                <div class="keypad-btn" onclick="keypadPress(1)">1</div>
+                <div class="keypad-btn" onclick="keypadPress(2)">2</div>
+                <div class="keypad-btn" onclick="keypadPress(3)">3</div>
+                
+                <div class="keypad-btn" onclick="keypadBackspace()">&lt;</div>
+                <div class="keypad-btn" onclick="keypadPress(0)">0</div>
+                <div class="keypad-btn keypad-enter" onclick="checkAnswer()">OK</div>
+            </div>
         </div>
     </div>
 
@@ -520,6 +590,7 @@
         let isPaused = false; 
         let currentMode = 'fastFacts'; 
         let practiceLogs = []; 
+        let isMobileKeypadActive = false; // NEW
         
         // Variables for custom confirmation logic
         let pendingConfirmationAction = null;
@@ -537,6 +608,7 @@
         const timerDisplay = document.getElementById('timer');
         const resetBtn = document.getElementById('reset-btn'); 
         const logBtn = document.getElementById('log-btn'); 
+        const keypadToggleBtn = document.getElementById('keypad-toggle-btn'); // NEW
         const weightsTableBody = document.getElementById('weights-body');
         const totalTimeDisplay = document.getElementById('total-time'); 
         const modeSelector = document.getElementById('game-mode'); 
@@ -544,6 +616,10 @@
         const checkAnswerBtn = document.getElementById('check-answer-btn');
         const closeBoxBtn = document.getElementById('close-box-btn');
         const pauseBoxBtn = document.getElementById('pause-box-btn'); 
+        
+        // Containers for toggle
+        const weightsContainer = document.getElementById('weights-container');
+        const keypadContainer = document.getElementById('keypad-container');
 
         // --- Triangle specific elements ---
         const triangleTop = document.getElementById('triangle-top');
@@ -586,6 +662,7 @@
                     totalTimeSeconds = state.totalTimeSeconds || 0; 
                     currentMode = state.currentMode || 'fastFacts'; 
                     practiceLogs = state.practiceLogs || []; 
+                    isMobileKeypadActive = state.isMobileKeypadActive || false; // Load preference
                     
                     ensureWeightsExist();
                 } catch (e) {
@@ -597,6 +674,10 @@
             }
             
             modeSelector.value = currentMode; 
+            
+            // Apply loaded keypad preference
+            applyKeypadMode();
+            
             updateScoreDisplay();
             updateTotalTimeDisplay(); 
             updateWeightTable();
@@ -618,6 +699,7 @@
             isPaused = false;
             currentMode = 'fastFacts'; 
             practiceLogs = [];
+            isMobileKeypadActive = false;
             ensureWeightsExist();
         }
         
@@ -651,10 +733,58 @@
                 lastProblemKey,
                 totalTimeSeconds,
                 currentMode,
-                practiceLogs
+                practiceLogs,
+                isMobileKeypadActive // Save preference
             };
             localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(state));
         }
+        
+        // --- Mobile Keypad Logic ---
+        
+        function toggleKeypad() {
+            isMobileKeypadActive = !isMobileKeypadActive;
+            applyKeypadMode();
+            saveGameState();
+        }
+        
+        function applyKeypadMode() {
+            if (isMobileKeypadActive) {
+                weightsContainer.style.display = 'none';
+                keypadContainer.style.display = 'block';
+                keypadToggleBtn.classList.add('btn-active-mode'); // Highlight button
+                
+                // Set input to readonly to prevent native keyboard
+                answerInput.readOnly = true;
+                
+                // Hide the redundant "Check" button if we have the keypad OK button
+                checkAnswerBtn.style.display = 'none';
+                
+            } else {
+                weightsContainer.style.display = 'block';
+                keypadContainer.style.display = 'none';
+                keypadToggleBtn.classList.remove('btn-active-mode');
+                
+                // Allow native input
+                answerInput.readOnly = false;
+                checkAnswerBtn.style.display = 'inline-block';
+            }
+        }
+        
+        // Global functions for inline HTML event handlers
+        window.keypadPress = function(num) {
+            // Prevent input if disabled (during flash/correction)
+            if (answerInput.disabled) return;
+            
+            // Limit input length
+            if (answerInput.value.length < 4) {
+                answerInput.value += num;
+            }
+        };
+        
+        window.keypadBackspace = function() {
+            if (answerInput.disabled) return;
+            answerInput.value = answerInput.value.slice(0, -1);
+        };
 
         // --- Logging and Reset Logic ---
 
@@ -768,6 +898,7 @@
                 saveGameState();     
                 
                 modeSelector.value = currentMode; 
+                applyKeypadMode(); // Apply default (off) or reset
                 updateScoreDisplay();
                 updateTotalTimeDisplay(); 
                 updateWeightTable();
@@ -793,13 +924,17 @@
             
             showConfirmation("Are you sure? This will reset your level progress, score, and time.", () => {
                 const existingLogs = [...practiceLogs]; 
+                // Keep keypad pref
+                const keypadPref = isMobileKeypadActive;
                 
                 initializeNewGame(); 
                 
                 practiceLogs = existingLogs; 
+                isMobileKeypadActive = keypadPref; // Restore pref
                 
                 saveGameState();
                 modeSelector.value = currentMode;
+                applyKeypadMode(); // Re-apply UI
                 updateScoreDisplay();
                 updateTotalTimeDisplay();
                 updateWeightTable();
@@ -1003,7 +1138,11 @@
             updateProblemDisplay(); 
             
             answerInput.value = '';
-            answerInput.focus();
+            
+            // Re-focus logic: only focus if NOT using on-screen keypad to avoid keyboard flash
+            if (!isMobileKeypadActive) {
+                answerInput.focus();
+            }
             
             startTimerDisplay();
             startTime = Date.now();
@@ -1263,6 +1402,9 @@
         pauseBoxBtn.addEventListener('click', togglePause);
         resetBtn.addEventListener('click', resetGame);
         logBtn.addEventListener('click', logScore); 
+        
+        // NEW: Keypad Toggle Listener
+        keypadToggleBtn.addEventListener('click', toggleKeypad);
 
         // Modal Listeners
         btnContinue.addEventListener('click', actionContinue);
